@@ -133,6 +133,109 @@ def _(candle, prev, pos):
     if rng > 0 and (candle["high"] - candle["close"]) / rng < 0.2:
         return "sell"
 
+# ─── Momentum / Micro-structure skills ───
+
+@_register("buy-hammer")
+def _(candle, prev, pos):
+    """Hammer candle: long lower wick, small body at top."""
+    body = abs(candle["close"] - candle["open"])
+    rng = candle["high"] - candle["low"]
+    lower_wick = min(candle["open"], candle["close"]) - candle["low"]
+    if rng > 0 and lower_wick / rng > 0.6 and body / rng < 0.3:
+        return "buy"
+
+@_register("sell-shooting-star")
+def _(candle, prev, pos):
+    """Shooting star: long upper wick, small body at bottom."""
+    body = abs(candle["close"] - candle["open"])
+    rng = candle["high"] - candle["low"]
+    upper_wick = candle["high"] - max(candle["open"], candle["close"])
+    if rng > 0 and upper_wick / rng > 0.6 and body / rng < 0.3:
+        return "sell"
+
+@_register("buy-volume-spike")
+def _(candle, prev, pos):
+    """Buy when volume > 3x previous and candle is green."""
+    if prev["volume"] > 0 and candle["volume"] > prev["volume"] * 3 and candle["close"] > candle["open"]:
+        return "buy"
+
+@_register("sell-volume-spike")
+def _(candle, prev, pos):
+    """Sell when volume > 3x previous and candle is red."""
+    if prev["volume"] > 0 and candle["volume"] > prev["volume"] * 3 and candle["close"] < candle["open"]:
+        return "sell"
+
+@_register("buy-engulfing")
+def _(candle, prev, pos):
+    """Bullish engulfing: green candle body covers entire previous red body."""
+    if prev["close"] < prev["open"] and candle["close"] > candle["open"]:
+        if candle["close"] > prev["open"] and candle["open"] < prev["close"]:
+            return "buy"
+
+@_register("sell-engulfing")
+def _(candle, prev, pos):
+    """Bearish engulfing: red candle body covers entire previous green body."""
+    if prev["close"] > prev["open"] and candle["close"] < candle["open"]:
+        if candle["close"] < prev["open"] and candle["open"] > prev["close"]:
+            return "sell"
+
+@_register("buy-double-green")
+def _(candle, prev, pos):
+    """Two consecutive green candles with increasing size."""
+    if candle["close"] > candle["open"] and prev["close"] > prev["open"]:
+        cur_body = candle["close"] - candle["open"]
+        prev_body = prev["close"] - prev["open"]
+        if cur_body > prev_body:
+            return "buy"
+
+@_register("sell-double-red")
+def _(candle, prev, pos):
+    """Two consecutive red candles with increasing size."""
+    if candle["close"] < candle["open"] and prev["close"] < prev["open"]:
+        cur_body = candle["open"] - candle["close"]
+        prev_body = prev["open"] - prev["close"]
+        if cur_body > prev_body:
+            return "sell"
+
+@_register("buy-breakout-high")
+def _(candle, prev, pos):
+    """Price breaks above previous high with conviction (close near candle high)."""
+    if candle["close"] > prev["high"]:
+        rng = candle["high"] - candle["low"]
+        if rng > 0 and (candle["close"] - candle["low"]) / rng > 0.8:
+            return "buy"
+
+@_register("sell-breakdown-low")
+def _(candle, prev, pos):
+    """Price breaks below previous low with conviction."""
+    if candle["close"] < prev["low"]:
+        rng = candle["high"] - candle["low"]
+        if rng > 0 and (candle["high"] - candle["close"]) / rng > 0.8:
+            return "sell"
+
+@_register("trailing-stop-0.5pct")
+def _(candle, prev, pos):
+    """Tight trailing stop for scalping."""
+    if pos and pos.get("peak", 0) > 0:
+        drawdown = _pct_change(pos["peak"], candle["close"])
+        if drawdown < -0.005:
+            return "sell"
+
+@_register("take-profit-1pct")
+def _(candle, prev, pos):
+    if pos and pos.get("entry", 0) > 0:
+        gain = _pct_change(pos["entry"], candle["close"])
+        if gain > 0.01:
+            return "sell"
+
+@_register("hold-if-tiny-range")
+def _(candle, prev, pos):
+    """Don't trade when candle range is tiny (< 0.1% of price)."""
+    rng = candle["high"] - candle["low"]
+    if candle["close"] > 0 and rng / candle["close"] < 0.001:
+        return "hold"
+
+
 def load_metaclaw_skills():
     """Load skill names from cerveau-nb/skills/ auto-skills."""
     skills_dir = Path(__file__).parent.parent.parent / "cerveau-nb" / "skills"
