@@ -2,9 +2,10 @@
 
 
 class Arena:
-    def __init__(self, candles: list[dict], initial_capital: float = 100.0):
+    def __init__(self, candles: list[dict], initial_capital: float = 100.0, fee_pct: float = 0.05):
         self.candles = candles
         self.initial_capital = initial_capital
+        self.fee_rate = fee_pct / 100  # 0.05% = 0.0005
 
     def evaluate(self, agents: list) -> dict[str, float]:
         """Run all agents through the candle series. Return {agent_id: pnl}."""
@@ -27,12 +28,16 @@ class Arena:
             agent.history.append(action)
 
             if action == "buy" and position is None:
-                size = capital / candle["close"]
+                fee = capital * self.fee_rate
+                capital_after_fee = capital - fee
+                size = capital_after_fee / candle["close"]
                 position = {"entry": candle["close"], "size": size, "peak": candle["close"]}
                 capital = 0
 
             elif action == "sell" and position is not None:
-                capital = position["size"] * candle["close"]
+                gross = position["size"] * candle["close"]
+                fee = gross * self.fee_rate
+                capital = gross - fee
                 position = None
 
             elif position is not None:

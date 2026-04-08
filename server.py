@@ -239,11 +239,13 @@ async def replay_agent(config: dict):
         generation=agent_data.get("generation", 0),
     )
 
-    # Detailed replay with trade logging
+    # Detailed replay with trade logging (0.05% fee per trade)
     capital = 100.0
+    fee_rate = 0.0005
     position = None
     trades = []
     equity = [capital]
+    total_fees = 0.0
 
     for i in range(1, len(candles)):
         candle = candles[i]
@@ -251,15 +253,21 @@ async def replay_agent(config: dict):
         action = agent.decide(candle, prev, position)
 
         if action == "buy" and position is None:
-            size = capital / candle["close"]
+            fee = capital * fee_rate
+            total_fees += fee
+            capital_after_fee = capital - fee
+            size = capital_after_fee / candle["close"]
             position = {"entry": candle["close"], "size": size, "peak": candle["close"]}
-            trades.append({"action": "buy", "price": candle["close"], "pnl": None, "candle_idx": i})
+            trades.append({"action": "buy", "price": candle["close"], "pnl": None, "fee": round(fee, 4), "candle_idx": i})
             capital = 0
 
         elif action == "sell" and position is not None:
-            capital = position["size"] * candle["close"]
-            pnl_pct = ((candle["close"] - position["entry"]) / position["entry"]) * 100
-            trades.append({"action": "sell", "price": candle["close"], "pnl": round(pnl_pct, 2), "candle_idx": i})
+            gross = position["size"] * candle["close"]
+            fee = gross * fee_rate
+            total_fees += fee
+            capital = gross - fee
+            pnl_pct = ((capital - 100.0) / 100.0) * 100 if len(trades) == 1 else ((candle["close"] - position["entry"]) / position["entry"] - 2 * fee_rate) * 100
+            trades.append({"action": "sell", "price": candle["close"], "pnl": round(pnl_pct, 2), "fee": round(fee, 4), "candle_idx": i})
             position = None
 
         elif position is not None:
@@ -294,6 +302,7 @@ async def replay_agent(config: dict):
         "equity": equity,
         "candles": len(candles),
         "symbol": symbol,
+        "total_fees": round(total_fees, 4),
     })
 
 
