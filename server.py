@@ -9,9 +9,36 @@ from pathlib import Path
 import websockets
 
 from data import fetch_ohlc
+from tick_fetcher import load_ticks, ticks_to_candles, DATA_DIR
 from agent import Agent, create_random_agent, SKILL_POOL
 from arena import Arena
 from evolution import select_survivors, evolve_generation
+
+
+# Kraken symbol → tick pair mapping
+TICK_PAIRS = {
+    "PF_SOLUSD": "SOLUSD", "PF_DOTUSD": "DOTUSD", "PF_ADAUSD": "ADAUSD",
+    "PF_ETHUSD": "ETHUSD", "PF_XBTUSD": "XXBTZUSD", "PF_AVAXUSD": "AVAXUSD",
+    "PF_LINKUSD": "LINKUSD",
+}
+
+
+def get_candles(symbol: str, interval: int, date_from: str = None, date_to: str = None) -> tuple[list[dict], str]:
+    """Try tick cache first, fallback to Kraken API. Returns (candles, source)."""
+    tick_pair = TICK_PAIRS.get(symbol, symbol.replace("PF_", ""))
+    tick_file = DATA_DIR / f"{tick_pair}.jsonl"
+
+    if tick_file.exists():
+        ticks = load_ticks(tick_pair, date_from, date_to)
+        if len(ticks) > 100:
+            candles = ticks_to_candles(ticks, interval_seconds=interval * 60)
+            return candles, f"ticks ({len(ticks):,} ticks → {len(candles):,} candles)"
+
+    # Fallback to Kraken OHLC API
+    candles = fetch_ohlc(symbol, interval=interval, count=8760)
+    if date_from or date_to:
+        candles = filter_candles_by_date(candles, date_from, date_to)
+    return candles, f"API ({len(candles):,} candles)"
 
 
 def filter_candles_by_date(candles, date_from=None, date_to=None):
@@ -50,17 +77,14 @@ async def run_evolution(config: dict):
     date_from = config.get("date_from")
     date_to = config.get("date_to")
 
-    await broadcast({"type": "status", "message": f"Fetching {symbol} data ({interval}min candles)..."})
-    all_candles = fetch_ohlc(symbol, interval=interval, count=8760)
+    await broadcast({"type": "status", "message": f"Loading {symbol} data ({interval}min)..."})
+    all_candles, source = get_candles(symbol, interval, date_from, date_to)
 
-    # Apply date filter if provided
-    if date_from or date_to:
-        all_candles = filter_candles_by_date(all_candles, date_from, date_to)
-        await broadcast({"type": "status", "message": f"Filtered to {len(all_candles)} candles ({date_from or 'start'} → {date_to or 'end'})"})
-
-    if not all_candles or len(all_candles) < 400:
-        await broadcast({"type": "error", "message": "No candle data"})
+    if not all_candles or len(all_candles) < 100:
+        await broadcast({"type": "error", "message": f"Not enough data: {len(all_candles) if all_candles else 0} candles (need 100+). Try fetching ticks first: python tick_fetcher.py --pair {TICK_PAIRS.get(symbol, symbol)} --days 30"})
         return
+
+    await broadcast({"type": "status", "message": f"Source: {source}. Splitting into quarters..."})
 
     # Split into 4 quarters (Q1=oldest, Q4=most recent)
     q_size = len(all_candles) // 4
@@ -202,9 +226,7 @@ async def replay_agent(config: dict):
 
     await broadcast({"type": "status", "message": f"Replaying {agent_data.get('id', '?')} on {symbol}..."})
 
-    candles = fetch_ohlc(symbol, interval=interval, count=8760)
-    if date_from or date_to:
-        candles = filter_candles_by_date(candles, date_from, date_to)
+    candles, source = get_candles(symbol, interval, date_from, date_to)
 
     if not candles or len(candles) < 10:
         await broadcast({"type": "error", "message": "Not enough candle data for replay"})
