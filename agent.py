@@ -235,6 +235,107 @@ def _(candle, prev, pos):
     if candle["close"] > 0 and rng / candle["close"] < 0.001:
         return "hold"
 
+# ─── Autobot strategies (EMA, RSI, BB, ADX) ───
+
+@_register("buy-ema-golden-cross")
+def _(candle, prev, pos):
+    """EMA50 crosses above EMA200 — bullish trend."""
+    if (candle.get("ema50") and candle.get("ema200") and prev.get("ema50") and prev.get("ema200")):
+        if prev["ema50"] <= prev["ema200"] and candle["ema50"] > candle["ema200"]:
+            return "buy"
+
+@_register("sell-ema-death-cross")
+def _(candle, prev, pos):
+    """EMA50 crosses below EMA200 — bearish trend."""
+    if (candle.get("ema50") and candle.get("ema200") and prev.get("ema50") and prev.get("ema200")):
+        if prev["ema50"] >= prev["ema200"] and candle["ema50"] < candle["ema200"]:
+            return "sell"
+
+@_register("buy-ema-trend-up")
+def _(candle, prev, pos):
+    """EMA50 > EMA200 AND RSI > 50 — confirmed uptrend (autobot EMA_TREND)."""
+    if candle.get("ema50") and candle.get("ema200") and candle.get("rsi"):
+        if candle["ema50"] > candle["ema200"] and candle["rsi"] > 50:
+            return "buy"
+
+@_register("sell-ema-trend-down")
+def _(candle, prev, pos):
+    """EMA50 < EMA200 AND RSI < 50 — confirmed downtrend."""
+    if candle.get("ema50") and candle.get("ema200") and candle.get("rsi"):
+        if candle["ema50"] < candle["ema200"] and candle["rsi"] < 50:
+            return "sell"
+
+@_register("buy-rsi-oversold")
+def _(candle, prev, pos):
+    """RSI < 30 — oversold bounce."""
+    if candle.get("rsi") and candle["rsi"] < 30:
+        return "buy"
+
+@_register("sell-rsi-overbought")
+def _(candle, prev, pos):
+    """RSI > 70 — overbought, take profit."""
+    if candle.get("rsi") and candle["rsi"] > 70:
+        return "sell"
+
+@_register("buy-bb-lower")
+def _(candle, prev, pos):
+    """Price touches lower Bollinger Band — mean reversion buy (autobot BB Scalp)."""
+    if candle.get("bb_lower") and candle["close"] <= candle["bb_lower"]:
+        return "buy"
+
+@_register("sell-bb-upper")
+def _(candle, prev, pos):
+    """Price touches upper Bollinger Band — mean reversion sell."""
+    if candle.get("bb_upper") and candle["close"] >= candle["bb_upper"]:
+        return "sell"
+
+@_register("buy-bb-squeeze")
+def _(candle, prev, pos):
+    """BB Squeeze + price above mid band — compression breakout up (autobot BB_SQUEEZE)."""
+    if candle.get("bb_squeeze") and candle.get("bb_mid"):
+        if candle["close"] > candle["bb_mid"]:
+            return "buy"
+
+@_register("sell-bb-squeeze-down")
+def _(candle, prev, pos):
+    """BB Squeeze + price below mid band — compression breakout down."""
+    if candle.get("bb_squeeze") and candle.get("bb_mid"):
+        if candle["close"] < candle["bb_mid"]:
+            return "sell"
+
+@_register("buy-composite")
+def _(candle, prev, pos):
+    """Autobot COMPOSITE: BB_SQUEEZE + EMA_TREND + RSI > 50 simultaneously."""
+    if (candle.get("bb_squeeze") and candle.get("ema50") and candle.get("ema200") and candle.get("rsi")):
+        if candle["ema50"] > candle["ema200"] and candle["rsi"] > 50:
+            return "buy"
+
+@_register("hold-adx-too-strong")
+def _(candle, prev, pos):
+    """Don't enter if ADX > 40 — trend too strong, risky for grid (autobot ADX filter)."""
+    if candle.get("adx") and candle["adx"] > 40:
+        return "hold"
+
+@_register("hold-adx-no-trend")
+def _(candle, prev, pos):
+    """Don't enter if ADX < 15 — no trend, choppy market."""
+    if candle.get("adx") and candle["adx"] < 15:
+        return "hold"
+
+@_register("buy-ema8-cross-ema21")
+def _(candle, prev, pos):
+    """Fast EMA8 crosses above EMA21 — short-term momentum."""
+    if (candle.get("ema8") and candle.get("ema21") and prev.get("ema8") and prev.get("ema21")):
+        if prev["ema8"] <= prev["ema21"] and candle["ema8"] > candle["ema21"]:
+            return "buy"
+
+@_register("sell-ema8-cross-ema21")
+def _(candle, prev, pos):
+    """Fast EMA8 crosses below EMA21 — short-term reversal."""
+    if (candle.get("ema8") and candle.get("ema21") and prev.get("ema8") and prev.get("ema21")):
+        if prev["ema8"] >= prev["ema21"] and candle["ema8"] < candle["ema21"]:
+            return "sell"
+
 
 def load_metaclaw_skills():
     """Load skill names from cerveau-nb/skills/ auto-skills."""

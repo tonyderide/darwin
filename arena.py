@@ -1,4 +1,5 @@
 """Arena — evaluate agents on historical OHLC candles."""
+from indicators import enrich_candles
 
 
 class Arena:
@@ -6,6 +7,7 @@ class Arena:
         self.candles = candles
         self.initial_capital = initial_capital
         self.fee_rate = fee_pct / 100  # 0.05% = 0.0005
+        enrich_candles(self.candles)  # add EMA, RSI, BB, ADX to each candle
 
     def evaluate(self, agents: list) -> dict[str, float]:
         """Run all agents through the candle series. Return {agent_id: pnl}."""
