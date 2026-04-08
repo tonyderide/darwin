@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DARWIN — Evolutionary Agent Arena</title>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0a0f;
+      --purple: #7b68ee;
+      --purple-dim: rgba(123, 104, 238, 0.3);
+      --purple-glow: rgba(123, 104, 238, 0.15);
+      --glass: rgba(10, 10, 20, 0.6);
+      --glass-border: rgba(123, 104, 238, 0.2);
+      --text: #e0e0ff;
+      --text-dim: rgba(224, 224, 255, 0.5);
+      --green: #39ff9a;
+      --red: #ff4d6d;
+      --font: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12px;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* ─── GLASS PANEL ─── */
+    .panel {
+      position: fixed;
+      z-index: 10;
+      background: var(--glass);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 0 30px rgba(123, 104, 238, 0.08), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    /* ─── CONTROLS PANEL (top-left) ─── */
+    #controls {
+      top: 20px;
+      left: 20px;
+      width: 220px;
+    }
+
+    #controls h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 6px;
+      color: var(--purple);
+      text-shadow: 0 0 20px var(--purple);
+      margin-bottom: 18px;
+      text-align: center;
+    }
+
+    .control-group {
+      margin-bottom: 14px;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .control-value {
+      color: var(--purple);
+      font-weight: 600;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+      height: 3px;
+      background: rgba(123, 104, 238, 0.25);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--purple);
+      box-shadow: 0 0 8px var(--purple);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.3);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--purple);
+      box-shadow: 0 0 8px var(--purple);
+      cursor: pointer;
+      border: none;
+    }
+
+    #btn-start {
+      width: 100%;
+      margin-top: 18px;
+      padding: 10px 0;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 0 20px rgba(123, 104, 238, 0.4);
+    }
+
+    #btn-start:hover:not(:disabled) {
+      background: #9585f5;
+      box-shadow: 0 0 30px rgba(123, 104, 238, 0.7);
+      transform: translateY(-1px);
+    }
+
+    #btn-start:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    #status-text {
+      margin-top: 12px;
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: center;
+      min-height: 14px;
+      letter-spacing: 0.5px;
+    }
+
+    #ws-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    #ws-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--red);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+
+    #ws-dot.connected {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* ─── INFO PANEL (top-right) ─── */
+    #info {
+      top: 20px;
+      right: 20px;
+      width: 240px;
+      display: none;
+    }
+
+    #info.visible {
+      display: block;
+    }
+
+    .info-section {
+      margin-bottom: 16px;
+    }
+
+    .info-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--glass-border);
+      padding-bottom: 4px;
+    }
+
+    #gen-display {
+      font-size: 42px;
+      font-weight: 700;
+      color: var(--purple);
+      text-shadow: 0 0 30px rgba(123, 104, 238, 0.6);
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    #gen-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Leaderboard */
+    .lb-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(123, 104, 238, 0.08);
+      font-size: 11px;
+    }
+
+    .lb-row:last-child {
+      border-bottom: none;
+    }
+
+    .lb-rank {
+      color: var(--text-dim);
+      font-size: 9px;
+      width: 14px;
+      flex-shrink: 0;
+    }
+
+    .lb-name {
+      flex: 1;
+      padding: 0 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lb-pnl {
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .pnl-pos { color: var(--green); }
+    .pnl-neg { color: var(--red); }
+
+    /* Selected agent */
+    #selected-detail {
+      display: none;
+    }
+
+    #selected-detail.visible {
+      display: block;
+    }
+
+    .detail-id {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--purple);
+      margin-bottom: 6px;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      padding: 2px 0;
+      color: var(--text-dim);
+    }
+
+    .detail-row span:last-child {
+      color: var(--text);
+    }
+
+    .skill-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .skill-tag {
+      font-size: 9px;
+      padding: 2px 6px;
+      background: var(--purple-glow);
+      border: 1px solid var(--purple-dim);
+      border-radius: 4px;
+      color: var(--purple);
+      letter-spacing: 0.5px;
+    }
+
+    /* ─── DIVIDER ─── */
+    .divider {
+      height: 1px;
+      background: var(--glass-border);
+      margin: 12px 0;
+    }
+
+    /* ─── TOOLTIP ─── */
+    #tooltip {
+      position: fixed;
+      z-index: 20;
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 11px;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+    }
+
+    #tooltip.visible {
+      display: block;
+    }
+
+    /* ─── COMPLETE BANNER ─── */
+    #complete-banner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 30;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--purple);
+      border-radius: 16px;
+      padding: 28px 40px;
+      text-align: center;
+      display: none;
+      box-shadow: 0 0 60px rgba(123, 104, 238, 0.3);
+      animation: fadeInScale 0.4s ease;
+    }
+
+    #complete-banner.visible {
+      display: block;
+    }
+
+    @keyframes fadeInScale {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+      to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
+
+    #complete-banner h2 {
+      font-size: 14px;
+      letter-spacing: 4px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    #complete-banner .best-name {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--purple);
+      text-shadow: 0 0 30px var(--purple);
+      margin-bottom: 4px;
+    }
+
+    #complete-banner .best-pnl {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    #complete-banner button {
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-family: var(--font);
+      font-size: 10px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+
+    #complete-banner button:hover {
+      border-color: var(--purple);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+
+  <!-- Controls panel -->
+  <div class="panel" id="controls">
+    <h1>DARWIN</h1>
+
+    <div class="control-group">
+      <div class="control-label">
+        Population
+        <span class="control-value" id="val-pop">8</span>
+      </div>
+      <input type="range" id="sl-pop" min="4" max="20" value="8" step="1" />
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Generations
+        <span class="control-value" id="val-gen">10</span>
+      </div>
+      <input type="range" id="sl-gen" min="3" max="50" value="10" step="1" />
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Mutation Rate
+        <span class="control-value" id="val-mut">0.30</span>
+      </div>
+      <input type="range" id="sl-mut" min="0.10" max="0.50" value="0.30" step="0.01" />
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Symbol
+      </div>
+      <select id="sel-symbol" style="width:100%; padding:6px 10px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:6px; color:var(--text); font-family:var(--font); font-size:12px; cursor:pointer;">
+        <option value="PF_SOLUSD">SOL/USD</option>
+        <option value="PF_DOTUSD">DOT/USD</option>
+        <option value="PF_ADAUSD">ADA/USD</option>
+        <option value="PF_ETHUSD">ETH/USD</option>
+        <option value="PF_XBTUSD">BTC/USD</option>
+        <option value="PF_AVAXUSD">AVAX/USD</option>
+        <option value="PF_LINKUSD">LINK/USD</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">Resolution</div>
+      <select id="sel-interval" style="width:100%; padding:4px 6px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:4px; color:var(--text); font-family:var(--font); font-size:10px; cursor:pointer;">
+        <option value="60">1h (~83 days)</option>
+        <option value="240" selected>4h (~1 year)</option>
+        <option value="1440">1d (~5 years)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <div class="control-label">Date Range</div>
+      <div style="display:flex; gap:6px;">
+        <input type="date" id="date-from" style="flex:1; padding:4px 6px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:4px; color:var(--text); font-family:var(--font); font-size:10px;" />
+        <input type="date" id="date-to" style="flex:1; padding:4px 6px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:4px; color:var(--text); font-family:var(--font); font-size:10px;" />
+      </div>
+    </div>
+
+    <button id="btn-start">START EVOLUTION</button>
+    <button id="btn-replay" style="display:none; width:100%; margin-top:6px; padding:10px; background:rgba(78,205,196,0.2); border:1px solid rgba(78,205,196,0.4); color:#4ecdc4; border-radius:8px; font-family:var(--font); font-size:12px; font-weight:600; cursor:pointer; letter-spacing:1px;">REPLAY WINNER</button>
+    <div id="status-text">Ready</div>
+
+    <div id="ws-indicator">
+      <div id="ws-dot"></div>
+      <span id="ws-label">Disconnected</span>
+    </div>
+  </div>
+
+  <!-- Info panel -->
+  <div class="panel" id="info">
+    <div class="info-section">
+      <div id="gen-display">0</div>
+      <div id="gen-label">Generation</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="info-section">
+      <div class="section-label">Leaderboard</div>
+      <div id="leaderboard"></div>
+    </div>
+
+    <div class="divider" id="selected-divider" style="display:none"></div>
+
+    <div id="selected-detail">
+      <div class="section-label">Selected Agent</div>
+      <div class="detail-id" id="sel-id"></div>
+      <div class="detail-row"><span>PnL</span><span id="sel-pnl"></span></div>
+      <div class="detail-row"><span>Generation</span><span id="sel-gen"></span></div>
+      <div class="detail-row"><span>Parents</span><span id="sel-parents"></span></div>
+      <div class="skill-tags" id="sel-skills"></div>
+    </div>
+  </div>
+
+  <!-- Tooltip -->
+  <div id="tooltip"></div>
+
+  <!-- Complete banner -->
+  <div id="complete-banner">
+    <h2>Evolution Complete</h2>
+    <div class="best-name" id="best-name">—</div>
+    <div class="best-pnl" id="best-pnl"></div>
+    <button id="btn-close-banner">CLOSE</button>
+  </div>
+
+  <!-- Robustness report overlay -->
+  <div id="robustness-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100; overflow-y:auto;">
+    <div style="max-width:900px; margin:40px auto; padding:30px; background:rgba(15,15,30,0.95); border:1px solid var(--glass-border); border-radius:16px;">
+      <h2 style="color:var(--purple); font-size:20px; margin-bottom:8px;">ROBUSTNESS REPORT</h2>
+      <p style="color:var(--text-dim); font-size:11px; margin-bottom:20px;">Trained on Q1, tested on Q2-Q4. Agents ranked by number of profitable quarters.</p>
+      <div id="robustness-table"></div>
+      <button onclick="document.getElementById('robustness-overlay').style.display='none'" style="margin-top:20px; padding:10px 30px; background:var(--purple); color:#fff; border:none; border-radius:8px; font-family:var(--font); font-size:13px; cursor:pointer;">CLOSE</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ─── CONSTANTS ───────────────────────────────────────────────────────────────
+
+    const GEN_COLORS = [
+      0x7b68ee, // purple (gen 0)
+      0x4fc3f7, // sky blue
+      0x81c784, // soft green
+      0xffb74d, // amber
+      0xf06292, // pink
+      0x4dd0e1, // teal
+      0xaed581, // lime
+      0xba68c8, // violet
+      0xff8a65, // orange
+      0x90caf9, // light blue
+    ];
+
+    const BASE_RADIUS   = 0.35;
+    const MAX_RADIUS    = 1.2;
+    const REPULSION     = 80;
+    const ATTRACTION    = 0.018;
+    const CENTER_PULL   = 0.004;
+    const DAMPING       = 0.85;
+    const SPREAD        = 18;
+    const EDGE_OPACITY  = 0.55;
+
+    // ─── THREE.JS SETUP ───────────────────────────────────────────────────────────
+
+    const container = document.getElementById('canvas-container');
+    const renderer  = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x0a0a0f, 1);
+    container.appendChild(renderer.domElement);
+
+    const scene  = new THREE.Scene();
+    scene.fog    = new THREE.FogExp2(0x0a0a0f, 0.022);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 300);
+    camera.position.set(0, 8, 28);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.autoRotate      = true;
+    controls.autoRotateSpeed = 0.4;
+    controls.enableDamping   = true;
+    controls.dampingFactor   = 0.06;
+    controls.minDistance     = 5;
+    controls.maxDistance     = 80;
+
+    // Ambient + directional light
+    scene.add(new THREE.AmbientLight(0x1a1a2e, 4));
+    const dirLight = new THREE.DirectionalLight(0x7b68ee, 2.5);
+    dirLight.position.set(10, 20, 10);
+    scene.add(dirLight);
+    const backLight = new THREE.DirectionalLight(0x4fc3f7, 1.2);
+    backLight.position.set(-15, -10, -10);
+    scene.add(backLight);
+
+    // ─── STAR PARTICLES ───────────────────────────────────────────────────────────
+
+    (function buildStars() {
+      const count = 1800;
+      const geo   = new THREE.BufferGeometry();
+      const pos   = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        pos[i * 3]     = (Math.random() - 0.5) * 280;
+        pos[i * 3 + 1] = (Math.random() - 0.5) * 280;
+        pos[i * 3 + 2] = (Math.random() - 0.5) * 280;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const mat = new THREE.PointsMaterial({
+        color: 0xaaaacc,
+        size: 0.18,
+        transparent: true,
+        opacity: 0.55,
+        sizeAttenuation: true,
+      });
+      scene.add(new THREE.Points(geo, mat));
+    })();
+
+    // ─── STATE ────────────────────────────────────────────────────────────────────
+
+    const nodes    = new Map();  // id -> { mesh, vel, agent, dying, growing }
+    const edges    = [];         // THREE.Line objects
+    let   edgeGroup = new THREE.Group();
+    scene.add(edgeGroup);
+
+    let selectedId = null;
+    let wsConnected = false;
+    let running     = false;
+    let currentGen  = 0;
+
+    // ─── UI REFS ─────────────────────────────────────────────────────────────────
+
+    const btnStart       = document.getElementById('btn-start');
+    const statusText     = document.getElementById('status-text');
+    const wsDot          = document.getElementById('ws-dot');
+    const wsLabel        = document.getElementById('ws-label');
+    const infoPanel      = document.getElementById('info');
+    const genDisplay     = document.getElementById('gen-display');
+    const leaderboardEl  = document.getElementById('leaderboard');
+    const selectedDetail = document.getElementById('selected-detail');
+    const selDiv         = document.getElementById('selected-divider');
+    const selId          = document.getElementById('sel-id');
+    const selPnl         = document.getElementById('sel-pnl');
+    const selGen         = document.getElementById('sel-gen');
+    const selParents     = document.getElementById('sel-parents');
+    const selSkills      = document.getElementById('sel-skills');
+    const tooltip        = document.getElementById('tooltip');
+    const completeBanner = document.getElementById('complete-banner');
+    const bestName       = document.getElementById('best-name');
+    const bestPnl        = document.getElementById('best-pnl');
+    const btnCloseBanner = document.getElementById('btn-close-banner');
+
+    // ─── SLIDER BINDING ───────────────────────────────────────────────────────────
+
+    function bindSlider(sliderId, valueId, fmt) {
+      const sl  = document.getElementById(sliderId);
+      const val = document.getElementById(valueId);
+      sl.addEventListener('input', () => { val.textContent = fmt(sl.value); });
+    }
+    bindSlider('sl-pop',  'val-pop',  v => v);
+    bindSlider('sl-gen',  'val-gen',  v => v);
+    bindSlider('sl-mut',  'val-mut',  v => parseFloat(v).toFixed(2));
+
+    // ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+    function agentRadius(fitness) {
+      // fitness can be negative — clamp to [0.1, 1]
+      const norm = Math.max(0.1, Math.min(1, (fitness + 100) / 200));
+      return BASE_RADIUS + norm * (MAX_RADIUS - BASE_RADIUS);
+    }
+
+    function agentColor(generation) {
+      return GEN_COLORS[generation % GEN_COLORS.length];
+    }
+
+    function formatPnl(v) {
+      if (v === undefined || v === null) return '—';
+      const n = parseFloat(v);
+      if (isNaN(n)) return '—';
+      return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+    }
+
+    function pnlClass(v) {
+      if (v === undefined || v === null) return '';
+      return parseFloat(v) >= 0 ? 'pnl-pos' : 'pnl-neg';
+    }
+
+    function randomPos() {
+      return new THREE.Vector3(
+        (Math.random() - 0.5) * SPREAD,
+        (Math.random() - 0.5) * SPREAD,
+        (Math.random() - 0.5) * SPREAD
+      );
+    }
+
+    function countSharedSkills(a, b) {
+      const skillsA = Object.keys(a.skills || {});
+      const skillsB = new Set(Object.keys(b.skills || {}));
+      return skillsA.filter(s => skillsB.has(s)).length;
+    }
+
+    // ─── SCENE MANAGEMENT ────────────────────────────────────────────────────────
+
+    function clearScene() {
+      nodes.forEach(n => scene.remove(n.mesh));
+      nodes.clear();
+      clearEdges();
+      selectedId = null;
+      hideSelectedDetail();
+    }
+
+    function clearEdges() {
+      edges.forEach(e => edgeGroup.remove(e));
+      edges.length = 0;
+    }
+
+    function createAgentMesh(agent) {
+      const r   = agentRadius(agent.fitness ?? 0);
+      const geo = new THREE.SphereGeometry(r, 20, 16);
+      const mat = new THREE.MeshPhongMaterial({
+        color:       agentColor(agent.generation ?? 0),
+        emissive:    agentColor(agent.generation ?? 0),
+        emissiveIntensity: 0.25,
+        transparent: true,
+        opacity:     1,
+        shininess:   120,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      const pos  = randomPos();
+      mesh.position.copy(pos);
+      mesh.userData.agentId = agent.id;
+      scene.add(mesh);
+      return mesh;
+    }
+
+    function addAgent(agent) {
+      if (nodes.has(agent.id)) return;
+      const mesh = createAgentMesh(agent);
+      nodes.set(agent.id, {
+        mesh,
+        vel:     new THREE.Vector3(),
+        agent,
+        dying:   false,
+        growing: true,
+        growT:   0,
+      });
+      mesh.scale.setScalar(0.01);
+    }
+
+    function updateAgentMesh(nodeData, agent) {
+      nodeData.agent = agent;
+      const mesh = nodeData.mesh;
+      // Update geometry (radius)
+      const r = agentRadius(agent.fitness ?? 0);
+      mesh.geometry.dispose();
+      mesh.geometry = new THREE.SphereGeometry(r, 20, 16);
+      // Update color
+      const c = agentColor(agent.generation ?? 0);
+      mesh.material.color.setHex(c);
+      mesh.material.emissive.setHex(c);
+    }
+
+    function buildEdges(agentList) {
+      clearEdges();
+      for (let i = 0; i < agentList.length; i++) {
+        for (let j = i + 1; j < agentList.length; j++) {
+          const a = agentList[i];
+          const b = agentList[j];
+          const shared = countSharedSkills(a, b);
+          if (shared < 1) continue;
+
+          const nodeA = nodes.get(a.id);
+          const nodeB = nodes.get(b.id);
+          if (!nodeA || !nodeB) continue;
+
+          const opacity = Math.min(EDGE_OPACITY, 0.1 + shared * 0.12);
+          const geo = new THREE.BufferGeometry();
+          const positions = new Float32Array(6);
+          geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          const mat = new THREE.LineBasicMaterial({
+            color: 0x7b68ee,
+            transparent: true,
+            opacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const line = new THREE.Line(geo, mat);
+          line.userData.idA    = a.id;
+          line.userData.idB    = b.id;
+          edgeGroup.add(line);
+          edges.push(line);
+        }
+      }
+    }
+
+    function updateEdgePositions() {
+      edges.forEach(line => {
+        const na = nodes.get(line.userData.idA);
+        const nb = nodes.get(line.userData.idB);
+        if (!na || !nb) return;
+        const pos = line.geometry.attributes.position;
+        pos.setXYZ(0, na.mesh.position.x, na.mesh.position.y, na.mesh.position.z);
+        pos.setXYZ(1, nb.mesh.position.x, nb.mesh.position.y, nb.mesh.position.z);
+        pos.needsUpdate = true;
+      });
+    }
+
+    // ─── FORCE-DIRECTED PHYSICS ───────────────────────────────────────────────────
+
+    const _diff = new THREE.Vector3();
+
+    function applyForces(dt) {
+      const nodeArr = [...nodes.values()].filter(n => !n.dying);
+
+      // Repulsion between all pairs
+      for (let i = 0; i < nodeArr.length; i++) {
+        for (let j = i + 1; j < nodeArr.length; j++) {
+          const a = nodeArr[i];
+          const b = nodeArr[j];
+          _diff.subVectors(b.mesh.position, a.mesh.position);
+          const distSq = Math.max(0.5, _diff.lengthSq());
+          const force  = REPULSION / distSq;
+          _diff.normalize().multiplyScalar(force * dt);
+          a.vel.sub(_diff);
+          b.vel.add(_diff);
+        }
+      }
+
+      // Attraction along edges
+      edges.forEach(line => {
+        const na = nodes.get(line.userData.idA);
+        const nb = nodes.get(line.userData.idB);
+        if (!na || !nb || na.dying || nb.dying) return;
+        _diff.subVectors(nb.mesh.position, na.mesh.position);
+        const dist   = _diff.length();
+        const force  = dist * ATTRACTION;
+        _diff.normalize().multiplyScalar(force * dt);
+        na.vel.add(_diff);
+        nb.vel.sub(_diff);
+      });
+
+      // Center gravity + apply velocity
+      nodeArr.forEach(n => {
+        n.vel.addScaledVector(n.mesh.position, -CENTER_PULL * dt * 60);
+        n.vel.multiplyScalar(DAMPING);
+        n.mesh.position.addScaledVector(n.vel, dt * 60);
+      });
+    }
+
+    // ─── ANIMATIONS ──────────────────────────────────────────────────────────────
+
+    function animateNodes(dt) {
+      nodes.forEach((n, id) => {
+        if (n.growing) {
+          n.growT = Math.min(1, n.growT + dt * 2.2);
+          const s = easeOutBack(n.growT);
+          n.mesh.scale.setScalar(s);
+          if (n.growT >= 1) n.growing = false;
+        }
+
+        if (n.dying) {
+          n.dyingT = Math.min(1, (n.dyingT || 0) + dt * 2.5);
+          const s = 1 - n.dyingT;
+          n.mesh.scale.setScalar(Math.max(0.001, s));
+          n.mesh.material.opacity = 1 - n.dyingT;
+          if (n.dyingT >= 1) {
+            scene.remove(n.mesh);
+            n.mesh.geometry.dispose();
+            n.mesh.material.dispose();
+            nodes.delete(id);
+          }
+        }
+      });
+    }
+
+    function easeOutBack(t) {
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    }
+
+    // ─── LEADERBOARD ─────────────────────────────────────────────────────────────
+
+    function updateLeaderboard(agents) {
+      const alive = agents.filter(a => a.alive !== false);
+      alive.sort((a, b) => (b.fitness ?? -Infinity) - (a.fitness ?? -Infinity));
+      const top5  = alive.slice(0, 5);
+
+      leaderboardEl.innerHTML = top5.map((a, i) => `
+        <div class="lb-row">
+          <span class="lb-rank">${i + 1}</span>
+          <span class="lb-name">${a.id}</span>
+          <span class="lb-pnl ${pnlClass(a.fitness)}">${formatPnl(a.fitness)}</span>
+        </div>
+      `).join('');
+    }
+
+    // ─── SELECTED AGENT ──────────────────────────────────────────────────────────
+
+    function showSelectedAgent(agent) {
+      selectedDetail.classList.add('visible');
+      selDiv.style.display = 'block';
+
+      selId.textContent  = agent.id;
+      selPnl.textContent = formatPnl(agent.fitness);
+      selPnl.className   = pnlClass(agent.fitness);
+      selGen.textContent = agent.generation ?? '—';
+
+      const parents = agent.parent_ids;
+      selParents.textContent = (parents && parents.length)
+        ? parents.join(', ')
+        : 'None (seed)';
+
+      const skills = Object.entries(agent.skills || {});
+      selSkills.innerHTML = skills
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, w]) => `<span class="skill-tag">${name} <b>${(w * 100).toFixed(0)}</b></span>`)
+        .join('');
+    }
+
+    function hideSelectedDetail() {
+      selectedDetail.classList.remove('visible');
+      selDiv.style.display = 'none';
+      selectedId = null;
+    }
+
+    // ─── RAYCASTER ────────────────────────────────────────────────────────────────
+
+    const raycaster = new THREE.Raycaster();
+    const mouse     = new THREE.Vector2();
+
+    renderer.domElement.addEventListener('click', ev => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x =  ((ev.clientX - rect.left)  / rect.width)  * 2 - 1;
+      mouse.y = -((ev.clientY - rect.top)   / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const meshes = [...nodes.values()].map(n => n.mesh);
+      const hits   = raycaster.intersectObjects(meshes);
+
+      if (hits.length > 0) {
+        const id = hits[0].object.userData.agentId;
+        if (selectedId === id) {
+          hideSelectedDetail();
+          deselectMesh(id);
+        } else {
+          if (selectedId) deselectMesh(selectedId);
+          selectedId = id;
+          selectMesh(id);
+          const node = nodes.get(id);
+          if (node) showSelectedAgent(node.agent);
+        }
+      } else {
+        if (selectedId) deselectMesh(selectedId);
+        hideSelectedDetail();
+      }
+    });
+
+    renderer.domElement.addEventListener('mousemove', ev => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x =  ((ev.clientX - rect.left)  / rect.width)  * 2 - 1;
+      mouse.y = -((ev.clientY - rect.top)   / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const meshes = [...nodes.values()].map(n => n.mesh);
+      const hits   = raycaster.intersectObjects(meshes);
+
+      if (hits.length > 0) {
+        const id   = hits[0].object.userData.agentId;
+        const node = nodes.get(id);
+        if (node) {
+          tooltip.textContent = `${id}  ${formatPnl(node.agent.fitness)}`;
+          tooltip.classList.add('visible');
+          tooltip.style.left = (ev.clientX + 14) + 'px';
+          tooltip.style.top  = (ev.clientY - 10) + 'px';
+          renderer.domElement.style.cursor = 'pointer';
+        }
+      } else {
+        tooltip.classList.remove('visible');
+        renderer.domElement.style.cursor = 'default';
+      }
+    });
+
+    function selectMesh(id) {
+      const n = nodes.get(id);
+      if (!n) return;
+      n.mesh.material.emissiveIntensity = 0.8;
+      n.mesh.material.wireframe = false;
+      // add selection ring
+      const r  = agentRadius(n.agent.fitness ?? 0) * 1.35;
+      const rg = new THREE.RingGeometry(r, r + 0.08, 40);
+      const rm = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+      const ring = new THREE.Mesh(rg, rm);
+      ring.userData.isRing = true;
+      ring.lookAt(camera.position);
+      n.mesh.add(ring);
+    }
+
+    function deselectMesh(id) {
+      const n = nodes.get(id);
+      if (!n) return;
+      n.mesh.material.emissiveIntensity = 0.25;
+      // remove rings
+      const toRemove = n.mesh.children.filter(c => c.userData.isRing);
+      toRemove.forEach(c => {
+        n.mesh.remove(c);
+        c.geometry.dispose();
+        c.material.dispose();
+      });
+    }
+
+    // ─── WEBSOCKET ────────────────────────────────────────────────────────────────
+
+    let ws = null;
+
+    function wsConnect() {
+      if (ws && ws.readyState < 2) ws.close();
+
+      ws = new WebSocket('ws://localhost:8765');
+
+      ws.onopen = () => {
+        wsConnected = true;
+        wsDot.classList.add('connected');
+        wsLabel.textContent = 'Connected';
+        setStatus('Connected — ready');
+        btnStart.disabled = false;
+      };
+
+      ws.onclose = () => {
+        wsConnected = false;
+        wsDot.classList.remove('connected');
+        wsLabel.textContent = 'Disconnected';
+        setStatus('WebSocket disconnected');
+        if (running) {
+          running = false;
+          btnStart.disabled = false;
+        }
+        setTimeout(wsConnect, 3000);
+      };
+
+      ws.onerror = () => {
+        wsLabel.textContent = 'Connection failed';
+        setStatus('Cannot reach ws://localhost:8765');
+      };
+
+      ws.onmessage = ev => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch (e) { return; }
+        handleMessage(msg);
+      };
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'init':       onInit(msg);       break;
+        case 'generation': onGeneration(msg); break;
+        case 'deaths':     onDeaths(msg);     break;
+        case 'births':     onBirths(msg);     break;
+        case 'complete':        onComplete(msg);        break;
+        case 'quarter_result':  onQuarterResult(msg);   break;
+        case 'robustness_report': onRobustness(msg);    break;
+        case 'replay_result':     onReplayResult(msg);  break;
+        case 'status':          setStatus(msg.message || ''); break;
+        case 'error':           setStatus('ERROR: ' + (msg.message || '?')); break;
+      }
+    }
+
+    function onInit(msg) {
+      clearScene();
+      currentGen = 0;
+      genDisplay.textContent = '0';
+      infoPanel.classList.add('visible');
+      completeBanner.classList.remove('visible');
+
+      const agents = msg.agents || [];
+      agents.forEach(a => addAgent(a));
+      buildEdges(agents);
+      updateLeaderboard(agents);
+      setStatus(`Init: ${agents.length} agents, ${msg.candle_count ?? '?'} candles`);
+    }
+
+    function onGeneration(msg) {
+      currentGen = msg.gen;
+      genDisplay.textContent = msg.gen;
+
+      const agents = msg.agents || [];
+      agents.forEach(a => {
+        const n = nodes.get(a.id);
+        if (n) updateAgentMesh(n, a);
+        else   addAgent(a);
+      });
+      buildEdges(agents.filter(a => a.alive !== false));
+      updateLeaderboard(agents);
+      setStatus(`Generation ${msg.gen}`);
+
+      // refresh selected detail
+      if (selectedId) {
+        const n = nodes.get(selectedId);
+        if (n) showSelectedAgent(n.agent);
+      }
+    }
+
+    function onDeaths(msg) {
+      const dead = msg.dead || [];
+      dead.forEach(d => {
+        const id = (typeof d === 'string') ? d : d.id;
+        const n = nodes.get(id);
+        if (n && !n.dying) {
+          n.dying  = true;
+          n.dyingT = 0;
+        }
+      });
+      setStatus(`Gen ${msg.gen}: ${dead.length} agent(s) died`);
+    }
+
+    function onBirths(msg) {
+      const born = msg.born || [];
+      born.forEach(a => {
+        if (!nodes.has(a.id)) addAgent(a);
+      });
+      setStatus(`Gen ${msg.gen}: ${born.length} agent(s) born`);
+    }
+
+    function onComplete(msg) {
+      running = false;
+      btnStart.disabled = false;
+      setStatus('Evolution complete');
+
+      const ranking = msg.final_ranking || [];
+      // Show ALL agents in final leaderboard (no alive filter)
+      if (ranking.length) {
+        const sorted = [...ranking].sort((a, b) => (b.fitness ?? -Infinity) - (a.fitness ?? -Infinity));
+        const top5 = sorted.slice(0, 5);
+        leaderboardEl.innerHTML = top5.map((a, i) => `
+          <div class="lb-row">
+            <span class="lb-rank">${i + 1}</span>
+            <span class="lb-name">${a.id}</span>
+            <span class="lb-pnl ${pnlClass(a.fitness)}">${formatPnl(a.fitness)}</span>
+          </div>
+        `).join('');
+      }
+
+      const best = msg.best;
+      if (best) {
+        bestName.textContent = best.id;
+        const pnl = formatPnl(best.fitness);
+        bestPnl.textContent  = pnl;
+        bestPnl.className    = 'best-pnl ' + pnlClass(best.fitness);
+
+        // Show best agent's skills in selected panel
+        showSelectedAgent(best);
+
+        // Save winner for replay
+        lastWinner = best;
+        document.getElementById('btn-replay').style.display = 'block';
+      }
+      completeBanner.classList.add('visible');
+    }
+
+    function onQuarterResult(msg) {
+      setStatus(`${msg.label}: best = ${msg.best?.id ?? '?'} (${formatPnl(msg.best?.fitness)})`);
+    }
+
+    function onRobustness(msg) {
+      const overlay = document.getElementById('robustness-overlay');
+      const table = document.getElementById('robustness-table');
+      const agents = msg.agents || [];
+      const quarters = msg.quarters || [];
+
+      let html = `<table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--glass-border);">
+            <th style="text-align:left; padding:8px; color:var(--text-dim);">#</th>
+            <th style="text-align:left; padding:8px; color:var(--text-dim);">Agent</th>`;
+      quarters.forEach(q => {
+        html += `<th style="text-align:right; padding:8px; color:var(--text-dim);">${q}</th>`;
+      });
+      html += `<th style="text-align:right; padding:8px; color:var(--text-dim);">Total</th>
+            <th style="text-align:center; padding:8px; color:var(--text-dim);">Win Q</th>
+          </tr>
+        </thead><tbody>`;
+
+      agents.forEach((a, i) => {
+        html += `<tr style="border-bottom:1px solid rgba(123,104,238,0.1);">
+          <td style="padding:8px; color:var(--text-dim);">${i + 1}</td>
+          <td style="padding:8px; color:var(--purple); font-weight:600;">${a.id}</td>`;
+        quarters.forEach(q => {
+          const pnl = a.quarters[q] ?? 0;
+          const cls = pnl >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+          html += `<td style="text-align:right; padding:8px; ${cls};">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>`;
+        });
+        const totalCls = a.total_pnl >= 0 ? 'color:var(--green); font-weight:700' : 'color:var(--red); font-weight:700';
+        html += `<td style="text-align:right; padding:8px; ${totalCls};">${a.total_pnl >= 0 ? '+' : ''}${a.total_pnl.toFixed(2)}%</td>`;
+        const stars = '★'.repeat(a.positive_quarters) + '☆'.repeat(4 - a.positive_quarters);
+        html += `<td style="text-align:center; padding:8px; color:var(--purple);">${stars}</td>`;
+        html += `</tr>`;
+
+        // Skills row
+        const skills = Object.entries(a.skills || {}).sort((x, y) => y[1] - x[1]);
+        html += `<tr><td></td><td colspan="${quarters.length + 2}" style="padding:2px 8px 10px;">`;
+        skills.forEach(([name, w]) => {
+          html += `<span style="display:inline-block; padding:2px 6px; margin:1px; background:rgba(123,104,238,0.15); border:1px solid rgba(123,104,238,0.3); border-radius:3px; font-size:10px; color:#b0a0ff;">${name} <b>${(w * 100).toFixed(0)}</b></span> `;
+        });
+        html += `</td></tr>`;
+      });
+
+      html += '</tbody></table>';
+      table.innerHTML = html;
+      overlay.style.display = 'block';
+    }
+
+    function onReplayResult(msg) {
+      running = false;
+      btnStart.disabled = false;
+
+      const overlay = document.getElementById('robustness-overlay');
+      const table = document.getElementById('robustness-table');
+      const a = msg.agent;
+      const trades = msg.trades || [];
+      const totalTrades = trades.length;
+      const wins = trades.filter(t => t.pnl > 0).length;
+      const losses = trades.filter(t => t.pnl < 0).length;
+      const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
+
+      let html = `<h3 style="color:var(--purple); margin-bottom:12px;">REPLAY: ${a.id}</h3>`;
+      html += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-bottom:20px;">
+        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
+          <div style="font-size:20px; font-weight:700; color:${msg.pnl >= 0 ? 'var(--green)' : 'var(--red)'};">${msg.pnl >= 0 ? '+' : ''}${msg.pnl.toFixed(2)}%</div>
+          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">TOTAL PnL</div>
+        </div>
+        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
+          <div style="font-size:20px; font-weight:700; color:var(--text);">${totalTrades}</div>
+          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">TRADES</div>
+        </div>
+        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
+          <div style="font-size:20px; font-weight:700; color:var(--green);">${winRate}%</div>
+          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">WIN RATE</div>
+        </div>
+        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
+          <div style="font-size:20px; font-weight:700; color:var(--text);">${msg.candles}</div>
+          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">CANDLES</div>
+        </div>
+      </div>`;
+
+      // Skills
+      html += `<div style="margin-bottom:16px;">`;
+      Object.entries(a.skills || {}).sort((x, y) => y[1] - x[1]).forEach(([name, w]) => {
+        html += `<span style="display:inline-block; padding:3px 8px; margin:2px; background:rgba(123,104,238,0.15); border:1px solid rgba(123,104,238,0.3); border-radius:4px; font-size:10px; color:#b0a0ff;">${name} <b>${(w * 100).toFixed(0)}</b></span> `;
+      });
+      html += `</div>`;
+
+      // Equity curve (simple text-based)
+      if (msg.equity && msg.equity.length > 0) {
+        const maxEq = Math.max(...msg.equity);
+        const minEq = Math.min(...msg.equity);
+        const range = maxEq - minEq || 1;
+        const W = 800, H = 150;
+        let svg = `<svg width="${W}" height="${H}" style="width:100%; border:1px solid rgba(123,104,238,0.2); border-radius:8px; background:rgba(0,0,0,0.3);">`;
+        // Zero line
+        const zeroY = H - ((100 - minEq) / range) * H;
+        svg += `<line x1="0" y1="${zeroY}" x2="${W}" y2="${zeroY}" stroke="rgba(255,255,255,0.1)" stroke-dasharray="4"/>`;
+        // Curve
+        const step = W / (msg.equity.length - 1);
+        let path = '';
+        msg.equity.forEach((v, i) => {
+          const x = i * step;
+          const y = H - ((v - minEq) / range) * H;
+          path += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)} `;
+        });
+        const lastVal = msg.equity[msg.equity.length - 1];
+        const curveColor = lastVal >= 100 ? '#39ff9a' : '#ff4d6d';
+        svg += `<path d="${path}" fill="none" stroke="${curveColor}" stroke-width="2"/>`;
+        svg += `<text x="8" y="16" fill="var(--text-dim)" font-size="10" font-family="var(--font)">Equity Curve ($100 start)</text>`;
+        svg += `</svg>`;
+        html += svg;
+      }
+
+      // Trade list
+      if (trades.length > 0) {
+        html += `<div style="margin-top:16px; max-height:200px; overflow-y:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:11px;">
+            <thead><tr style="border-bottom:1px solid var(--glass-border);">
+              <th style="text-align:left; padding:4px; color:var(--text-dim);">#</th>
+              <th style="text-align:left; padding:4px; color:var(--text-dim);">Action</th>
+              <th style="text-align:right; padding:4px; color:var(--text-dim);">Price</th>
+              <th style="text-align:right; padding:4px; color:var(--text-dim);">PnL</th>
+            </tr></thead><tbody>`;
+        trades.forEach((t, i) => {
+          const cls = t.pnl > 0 ? 'color:var(--green)' : t.pnl < 0 ? 'color:var(--red)' : 'color:var(--text-dim)';
+          html += `<tr style="border-bottom:1px solid rgba(123,104,238,0.05);">
+            <td style="padding:3px 4px; color:var(--text-dim);">${i + 1}</td>
+            <td style="padding:3px 4px; color:${t.action === 'buy' ? 'var(--green)' : 'var(--red)'};">${t.action.toUpperCase()}</td>
+            <td style="padding:3px 4px; text-align:right;">${t.price.toFixed(4)}</td>
+            <td style="padding:3px 4px; text-align:right; ${cls};">${t.pnl !== null ? (t.pnl >= 0 ? '+' : '') + t.pnl.toFixed(2) + '%' : '—'}</td>
+          </tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+
+      table.innerHTML = html;
+      overlay.style.display = 'block';
+    }
+
+    function setStatus(text) {
+      statusText.textContent = text;
+    }
+
+    // ─── START BUTTON ─────────────────────────────────────────────────────────────
+
+    btnStart.addEventListener('click', () => {
+      if (!wsConnected) { setStatus('Not connected'); return; }
+      if (running)      return;
+
+      running = true;
+      btnStart.disabled = true;
+      completeBanner.classList.remove('visible');
+      setStatus('Starting…');
+
+      const config = {
+        population:    parseInt(document.getElementById('sl-pop').value),
+        generations:   parseInt(document.getElementById('sl-gen').value),
+        mutation_rate: parseFloat(document.getElementById('sl-mut').value),
+        symbol:        document.getElementById('sel-symbol').value,
+        interval:      parseInt(document.getElementById('sel-interval').value),
+        date_from:     document.getElementById('date-from').value || null,
+        date_to:       document.getElementById('date-to').value || null,
+      };
+
+      ws.send(JSON.stringify({ type: 'start', config }));
+    });
+
+    // Replay winner button
+    let lastWinner = null;
+    document.getElementById('btn-replay').addEventListener('click', () => {
+      if (!wsConnected || !lastWinner) return;
+      running = true;
+      btnStart.disabled = true;
+      setStatus('Replaying winner…');
+      ws.send(JSON.stringify({
+        type: 'replay',
+        agent: lastWinner,
+        symbol: document.getElementById('sel-symbol').value,
+        interval: parseInt(document.getElementById('sel-interval').value),
+        date_from: document.getElementById('date-from').value || null,
+        date_to: document.getElementById('date-to').value || null,
+      }));
+    });
+
+    btnCloseBanner.addEventListener('click', () => {
+      completeBanner.classList.remove('visible');
+    });
+
+    // ─── RESIZE ───────────────────────────────────────────────────────────────────
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ─── RENDER LOOP ─────────────────────────────────────────────────────────────
+
+    let lastTime = performance.now();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const dt  = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime  = now;
+
+      applyForces(dt);
+      animateNodes(dt);
+      updateEdgePositions();
+
+      // keep selection ring facing camera
+      if (selectedId) {
+        const n = nodes.get(selectedId);
+        if (n) {
+          n.mesh.children.forEach(c => {
+            if (c.userData.isRing) c.lookAt(camera.position);
+          });
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // ─── BOOT ─────────────────────────────────────────────────────────────────────
+
+    btnStart.disabled = true;
+    wsConnect();
+    animate();
+  </script>
+</body>
+</html>
