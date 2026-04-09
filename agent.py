@@ -415,6 +415,25 @@ class Agent:
             return 0.03
         return 0.05  # default 5% hard stop
 
+    def get_grid_spacing(self) -> float:
+        """Grid spacing between levels (%)."""
+        if "buy-on-dip-0.5pct" in self.skills:
+            return 0.005
+        if "buy-on-dip-1pct" in self.skills:
+            return 0.01
+        if "buy-on-dip-2pct" in self.skills:
+            return 0.02
+        return 0.012  # default 1.2% (like Martin config)
+
+    def get_grid_levels(self) -> int:
+        """Number of grid levels above and below."""
+        buy_skills = sum(1 for s in self.skills if s.startswith("buy-"))
+        if buy_skills >= 4:
+            return 8
+        if buy_skills >= 2:
+            return 5
+        return 3
+
     def get_martingale_levels(self) -> int:
         """How many times to double down. More buy signals = more levels."""
         buy_skills = sum(1 for s in self.skills if s.startswith("buy-"))
