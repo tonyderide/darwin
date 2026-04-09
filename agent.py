@@ -365,7 +365,7 @@ class Agent:
         self.history = []  # list of actions taken
 
     def decide(self, candle: dict, prev_candle: dict, position: dict = None) -> str:
-        """Weighted vote across all skills."""
+        """Weighted vote across all skills. Returns buy/sell/short/hold."""
         votes = {"buy": 0.0, "sell": 0.0, "hold": 0.0}
         for skill_name, weight in self.skills.items():
             fn = SKILL_POOL.get(skill_name)
@@ -375,7 +375,64 @@ class Agent:
                     votes[result] += weight
         if votes["buy"] == votes["sell"] == votes["hold"] == 0:
             return "hold"
-        return max(votes, key=votes.get)
+        action = max(votes, key=votes.get)
+        # If no position and sell signal → short
+        if action == "sell" and (position is None or position == {}):
+            return "short"
+        return action
+
+    def get_trail_pct(self) -> float:
+        """Trailing stop distance (% below peak). Derived from trailing skills."""
+        if "trailing-stop-0.5pct" in self.skills:
+            return 0.005 * self.skills["trailing-stop-0.5pct"]
+        if "trailing-stop-1pct" in self.skills:
+            return 0.01 * self.skills["trailing-stop-1pct"]
+        if "trailing-stop-3pct" in self.skills:
+            return 0.03 * self.skills["trailing-stop-3pct"]
+        return 0.02  # default 2%
+
+    def get_min_profit(self) -> float:
+        """Minimum gain% before trailing activates. Derived from take-profit skills."""
+        if "take-profit-1pct" in self.skills:
+            return 0.005  # activate trail at 0.5% (half of TP target)
+        if "take-profit-2pct" in self.skills:
+            return 0.01
+        if "take-profit-5pct" in self.skills:
+            return 0.02
+        return 0.003  # default: activate at 0.3% gain
+
+    def get_min_hold(self) -> int:
+        """Minimum candles before any exit allowed."""
+        if "hold-if-tiny-range" in self.skills:
+            return 5
+        return 3  # default: hold at least 3 candles
+
+    def get_stop_loss(self) -> float:
+        """Hard stop loss percentage."""
+        if "trailing-stop-0.5pct" in self.skills:
+            return 0.015
+        if "trailing-stop-1pct" in self.skills:
+            return 0.03
+        return 0.05  # default 5% hard stop
+
+    def get_martingale_levels(self) -> int:
+        """How many times to double down. More buy signals = more levels."""
+        buy_skills = sum(1 for s in self.skills if s.startswith("buy-"))
+        if buy_skills >= 4:
+            return 4
+        if buy_skills >= 2:
+            return 3
+        return 2  # minimum 2 levels
+
+    def get_level_spacing(self) -> float:
+        """Required % drop between martingale levels."""
+        if "buy-on-dip-0.5pct" in self.skills:
+            return 0.005
+        if "buy-on-dip-1pct" in self.skills:
+            return 0.01
+        if "buy-on-dip-2pct" in self.skills:
+            return 0.02
+        return 0.01  # default 1% between levels
 
     def to_dict(self) -> dict:
         return {
