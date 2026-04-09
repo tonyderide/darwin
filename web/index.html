@@ -1,1415 +1,622 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DARWIN — Evolutionary Agent Arena</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DARWIN — Evolutionary Trading Arena</title>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
-    }
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
   }
-  </script>
+}
+</script>
 
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-    :root {
-      --bg: #0a0a0f;
-      --purple: #7b68ee;
-      --purple-dim: rgba(123, 104, 238, 0.3);
-      --purple-glow: rgba(123, 104, 238, 0.15);
-      --glass: rgba(10, 10, 20, 0.6);
-      --glass-border: rgba(123, 104, 238, 0.2);
-      --text: #e0e0ff;
-      --text-dim: rgba(224, 224, 255, 0.5);
-      --green: #39ff9a;
-      --red: #ff4d6d;
-      --font: 'JetBrains Mono', 'Fira Code', monospace;
-    }
+:root{
+  --bg:#06060c;--surface:#0c0c16;--surface2:#10101e;--border:rgba(120,100,230,0.12);
+  --accent:#8b7cf7;--accent2:#6c5ce7;--accent-dim:rgba(139,124,247,0.15);
+  --cyan:#22d3ee;--green:#34d399;--red:#f87171;--amber:#fbbf24;--pink:#f472b6;
+  --text:#ddd6fe;--text2:rgba(221,214,254,0.55);--text3:rgba(221,214,254,0.3);
+  --font-display:'Outfit',sans-serif;--font-mono:'IBM Plex Mono',monospace;
+  --radius:10px;--panel-w:300px;
+}
 
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 12px;
-    }
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:11px}
+::selection{background:var(--accent);color:#fff}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--accent-dim);border-radius:3px}
 
-    #canvas-container {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-    }
+/* ═══ LAYOUT ═══ */
+#canvas-container{position:fixed;inset:0;z-index:0}
+canvas{display:block}
 
-    canvas {
-      display: block;
-    }
+.panel{position:fixed;z-index:10;background:var(--surface);border:1px solid var(--border);overflow:hidden}
 
-    /* ─── GLASS PANEL ─── */
-    .panel {
-      position: fixed;
-      z-index: 10;
-      background: var(--glass);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 0 30px rgba(123, 104, 238, 0.08), inset 0 1px 0 rgba(255,255,255,0.05);
-    }
+/* ═══ LEFT PANEL — COMMAND CENTER ═══ */
+#panel-left{top:0;left:0;bottom:0;width:var(--panel-w);display:flex;flex-direction:column;border-right:1px solid var(--border);border-radius:0}
 
-    /* ─── CONTROLS PANEL (top-left) ─── */
-    #controls {
-      top: 20px;
-      left: 20px;
-      width: 220px;
-    }
+#logo-bar{padding:14px 16px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+#logo-bar h1{font-family:var(--font-display);font-size:18px;font-weight:800;letter-spacing:3px;color:var(--accent);text-shadow:0 0 30px rgba(139,124,247,0.4)}
+#logo-bar .version{font-size:9px;color:var(--text3);letter-spacing:1px;margin-left:auto}
 
-    #controls h1 {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: 6px;
-      color: var(--purple);
-      text-shadow: 0 0 20px var(--purple);
-      margin-bottom: 18px;
-      text-align: center;
-    }
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface2)}
+.tab{flex:1;padding:8px 0;text-align:center;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(139,124,247,0.05)}
 
-    .control-group {
-      margin-bottom: 14px;
-    }
+.tab-content{display:none;flex:1;overflow-y:auto;padding:12px 14px}
+.tab-content.active{display:block}
 
-    .control-label {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 10px;
-      letter-spacing: 1px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
+/* Form controls */
+.form-group{margin-bottom:12px}
+.form-label{display:flex;justify-content:space-between;align-items:center;font-size:9px;letter-spacing:0.8px;text-transform:uppercase;color:var(--text3);margin-bottom:5px}
+.form-value{color:var(--accent);font-weight:600;font-size:10px}
+input[type=range]{width:100%;appearance:none;height:3px;background:rgba(139,124,247,0.2);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);cursor:pointer;border:none}
+select,.input-field{width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:10px;cursor:pointer;outline:none}
+select:focus,.input-field:focus{border-color:var(--accent)}
+.date-row{display:flex;gap:6px}
+.date-row input{flex:1}
 
-    .control-value {
-      color: var(--purple);
-      font-weight: 600;
-    }
+/* Mode selector */
+.mode-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px}
+.mode-card{padding:10px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;transition:all .2s}
+.mode-card:hover{border-color:rgba(139,124,247,0.3)}
+.mode-card.active{border-color:var(--accent);background:var(--accent-dim)}
+.mode-card .mode-icon{font-size:18px;margin-bottom:4px}
+.mode-card .mode-name{font-size:9px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--text2)}
+.mode-card.active .mode-name{color:var(--accent)}
 
-    input[type="range"] {
-      width: 100%;
-      appearance: none;
-      -webkit-appearance: none;
-      height: 3px;
-      background: rgba(123, 104, 238, 0.25);
-      border-radius: 2px;
-      outline: none;
-      cursor: pointer;
-    }
+/* Skill browser */
+.skill-category{margin-bottom:10px}
+.skill-cat-header{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.skill-cat-header::after{content:'';flex:1;height:1px;background:var(--border)}
+.skill-item{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px}
+.skill-toggle{width:28px;height:14px;border-radius:7px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;position:relative;transition:all .2s;flex-shrink:0}
+.skill-toggle.on{background:var(--accent-dim);border-color:var(--accent)}
+.skill-toggle::after{content:'';position:absolute;top:2px;left:2px;width:8px;height:8px;border-radius:50%;background:var(--text3);transition:all .2s}
+.skill-toggle.on::after{left:16px;background:var(--accent)}
+.skill-name{flex:1;color:var(--text2);font-size:10px}
+.skill-weight{width:40px;text-align:right;color:var(--accent);font-size:10px;font-weight:500}
 
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: var(--purple);
-      box-shadow: 0 0 8px var(--purple);
-      cursor: pointer;
-      transition: transform 0.15s;
-    }
+/* Buttons */
+.btn-primary{width:100%;padding:11px;background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;border:none;border-radius:8px;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .25s;box-shadow:0 4px 20px rgba(139,124,247,0.3)}
+.btn-primary:hover:not(:disabled){box-shadow:0 4px 30px rgba(139,124,247,0.5);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-secondary{width:100%;padding:9px;background:transparent;border:1px solid var(--cyan);color:var(--cyan);border-radius:8px;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:6px}
+.btn-secondary:hover{background:rgba(34,211,238,0.1)}
 
-    input[type="range"]::-webkit-slider-thumb:hover {
-      transform: scale(1.3);
-    }
+#action-bar{padding:12px 14px;border-top:1px solid var(--border)}
 
-    input[type="range"]::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: var(--purple);
-      box-shadow: 0 0 8px var(--purple);
-      cursor: pointer;
-      border: none;
-    }
+/* ═══ RIGHT PANEL — INTEL ═══ */
+#panel-right{top:0;right:0;bottom:0;width:var(--panel-w);display:flex;flex-direction:column;border-left:1px solid var(--border);border-radius:0}
 
-    #btn-start {
-      width: 100%;
-      margin-top: 18px;
-      padding: 10px 0;
-      background: var(--purple);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-family: var(--font);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: all 0.2s;
-      box-shadow: 0 0 20px rgba(123, 104, 238, 0.4);
-    }
+/* Gen counter */
+#gen-bar{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:10px}
+#gen-number{font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--accent);line-height:1}
+#gen-label{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
 
-    #btn-start:hover:not(:disabled) {
-      background: #9585f5;
-      box-shadow: 0 0 30px rgba(123, 104, 238, 0.7);
-      transform: translateY(-1px);
-    }
+/* Leaderboard */
+.section{padding:10px 14px;border-bottom:1px solid var(--border)}
+.section-title{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px}
+.lb-row{display:flex;align-items:center;padding:4px 0;gap:8px}
+.lb-rank{width:16px;font-size:10px;color:var(--text3);font-weight:600}
+.lb-name{flex:1;font-size:10px;color:var(--text);font-weight:500}
+.lb-pnl{font-size:10px;font-weight:600}
+.pnl-pos{color:var(--green)}.pnl-neg{color:var(--red)}
 
-    #btn-start:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
+/* Selected agent */
+#agent-detail{padding:10px 14px;border-bottom:1px solid var(--border);display:none}
+#agent-detail.visible{display:block}
+.agent-id{font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.agent-row{display:flex;justify-content:space-between;padding:2px 0;font-size:10px}
+.agent-row span:first-child{color:var(--text3)}
+.agent-row span:last-child{font-weight:500}
+.skill-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px}
+.skill-tag{padding:2px 6px;background:var(--accent-dim);border:1px solid rgba(139,124,247,0.25);border-radius:4px;font-size:9px;color:var(--text2)}
+.skill-tag b{color:var(--accent);margin-left:3px}
 
-    #status-text {
-      margin-top: 12px;
-      font-size: 10px;
-      color: var(--text-dim);
-      text-align: center;
-      min-height: 14px;
-      letter-spacing: 0.5px;
-    }
+/* Replay / Equity section */
+#replay-section{flex:1;overflow-y:auto;padding:10px 14px;display:none}
+#replay-section.visible{display:block}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.stat-card{padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;text-align:center}
+.stat-val{font-family:var(--font-display);font-size:18px;font-weight:700;margin-bottom:2px}
+.stat-lbl{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
+.stat-green .stat-val{color:var(--green)}.stat-red .stat-val{color:var(--red)}.stat-accent .stat-val{color:var(--accent)}.stat-cyan .stat-val{color:var(--cyan)}
+#equity-chart{width:100%;height:120px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);margin-bottom:10px}
+#trade-log{max-height:300px;overflow-y:auto}
+.trade-row{display:grid;grid-template-columns:90px 100px 80px 70px;padding:3px 0;font-size:10px;border-bottom:1px solid rgba(139,124,247,0.04)}
+.trade-header{color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:4px}
+.trade-grid-start{color:var(--accent)}.trade-buy-fill{color:var(--cyan)}.trade-round-trip{color:var(--green)}.trade-grid-close{color:var(--amber)}.trade-grid-stop{color:var(--red)}
 
-    #ws-indicator {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 10px;
-      font-size: 10px;
-      color: var(--text-dim);
-    }
+/* ═══ BOTTOM BAR ═══ */
+#bottom-bar{position:fixed;bottom:0;left:var(--panel-w);right:var(--panel-w);z-index:10;height:32px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:16px}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--red);flex-shrink:0}
+.status-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+#status-text{font-size:10px;color:var(--text2);flex:1}
+#ws-label{font-size:9px;color:var(--text3)}
 
-    #ws-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--red);
-      transition: background 0.3s;
-      flex-shrink: 0;
-    }
+/* ═══ TOOLTIP ═══ */
+#tooltip{position:fixed;z-index:50;background:var(--surface);border:1px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:10px;pointer-events:none;opacity:0;transition:opacity .15s}
+#tooltip.visible{opacity:1}
 
-    #ws-dot.connected {
-      background: var(--green);
-      box-shadow: 0 0 6px var(--green);
-    }
+/* ═══ COMPLETE BANNER ═══ */
+#complete-banner{position:fixed;z-index:40;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);background:var(--surface);border:1px solid var(--accent);border-radius:16px;padding:30px 50px;text-align:center;opacity:0;pointer-events:none;transition:all .4s cubic-bezier(.34,1.56,.64,1);box-shadow:0 0 60px rgba(139,124,247,0.2)}
+#complete-banner.visible{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+#complete-banner h2{font-family:var(--font-display);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);margin-bottom:8px}
+.best-name{font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px}
+.best-pnl{font-size:20px;font-weight:700;margin-bottom:16px}
+#btn-close-banner{padding:8px 24px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:1px;cursor:pointer}
 
-    /* ─── INFO PANEL (top-right) ─── */
-    #info {
-      top: 20px;
-      right: 20px;
-      width: 240px;
-      display: none;
-    }
-
-    #info.visible {
-      display: block;
-    }
-
-    .info-section {
-      margin-bottom: 16px;
-    }
-
-    .info-section:last-child {
-      margin-bottom: 0;
-    }
-
-    .section-label {
-      font-size: 9px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      margin-bottom: 8px;
-      border-bottom: 1px solid var(--glass-border);
-      padding-bottom: 4px;
-    }
-
-    #gen-display {
-      font-size: 42px;
-      font-weight: 700;
-      color: var(--purple);
-      text-shadow: 0 0 30px rgba(123, 104, 238, 0.6);
-      line-height: 1;
-      letter-spacing: -1px;
-    }
-
-    #gen-label {
-      font-size: 10px;
-      color: var(--text-dim);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-top: 2px;
-    }
-
-    /* Leaderboard */
-    .lb-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 0;
-      border-bottom: 1px solid rgba(123, 104, 238, 0.08);
-      font-size: 11px;
-    }
-
-    .lb-row:last-child {
-      border-bottom: none;
-    }
-
-    .lb-rank {
-      color: var(--text-dim);
-      font-size: 9px;
-      width: 14px;
-      flex-shrink: 0;
-    }
-
-    .lb-name {
-      flex: 1;
-      padding: 0 6px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .lb-pnl {
-      font-weight: 600;
-      font-size: 11px;
-    }
-
-    .pnl-pos { color: var(--green); }
-    .pnl-neg { color: var(--red); }
-
-    /* Selected agent */
-    #selected-detail {
-      display: none;
-    }
-
-    #selected-detail.visible {
-      display: block;
-    }
-
-    .detail-id {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--purple);
-      margin-bottom: 6px;
-    }
-
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      padding: 2px 0;
-      color: var(--text-dim);
-    }
-
-    .detail-row span:last-child {
-      color: var(--text);
-    }
-
-    .skill-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 6px;
-    }
-
-    .skill-tag {
-      font-size: 9px;
-      padding: 2px 6px;
-      background: var(--purple-glow);
-      border: 1px solid var(--purple-dim);
-      border-radius: 4px;
-      color: var(--purple);
-      letter-spacing: 0.5px;
-    }
-
-    /* ─── DIVIDER ─── */
-    .divider {
-      height: 1px;
-      background: var(--glass-border);
-      margin: 12px 0;
-    }
-
-    /* ─── TOOLTIP ─── */
-    #tooltip {
-      position: fixed;
-      z-index: 20;
-      background: var(--glass);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--glass-border);
-      border-radius: 8px;
-      padding: 8px 12px;
-      font-size: 11px;
-      pointer-events: none;
-      display: none;
-      white-space: nowrap;
-    }
-
-    #tooltip.visible {
-      display: block;
-    }
-
-    /* ─── COMPLETE BANNER ─── */
-    #complete-banner {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 30;
-      background: var(--glass);
-      backdrop-filter: blur(20px);
-      border: 1px solid var(--purple);
-      border-radius: 16px;
-      padding: 28px 40px;
-      text-align: center;
-      display: none;
-      box-shadow: 0 0 60px rgba(123, 104, 238, 0.3);
-      animation: fadeInScale 0.4s ease;
-    }
-
-    #complete-banner.visible {
-      display: block;
-    }
-
-    @keyframes fadeInScale {
-      from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
-      to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    }
-
-    #complete-banner h2 {
-      font-size: 14px;
-      letter-spacing: 4px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    #complete-banner .best-name {
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--purple);
-      text-shadow: 0 0 30px var(--purple);
-      margin-bottom: 4px;
-    }
-
-    #complete-banner .best-pnl {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
-
-    #complete-banner button {
-      background: transparent;
-      border: 1px solid var(--glass-border);
-      color: var(--text-dim);
-      padding: 6px 16px;
-      border-radius: 6px;
-      font-family: var(--font);
-      font-size: 10px;
-      cursor: pointer;
-      letter-spacing: 1px;
-      transition: all 0.2s;
-    }
-
-    #complete-banner button:hover {
-      border-color: var(--purple);
-      color: var(--text);
-    }
-  </style>
+/* ═══ ROBUSTNESS OVERLAY ═══ */
+#robustness-overlay{display:none;position:fixed;inset:0;z-index:100;background:rgba(6,6,12,0.92);overflow-y:auto;backdrop-filter:blur(4px)}
+.robustness-inner{max-width:960px;margin:40px auto;padding:30px;background:var(--surface);border:1px solid var(--border);border-radius:16px}
+.robustness-inner h2{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.robustness-inner .sub{font-size:10px;color:var(--text3);margin-bottom:20px}
+.robustness-inner table{width:100%;border-collapse:collapse;font-size:11px}
+.robustness-inner th{text-align:left;padding:8px;color:var(--text3);font-size:9px;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.robustness-inner td{padding:6px 8px;border-bottom:1px solid rgba(139,124,247,0.05)}
+.robustness-inner .btn-close{margin-top:20px;padding:10px 30px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:var(--font-mono);font-size:11px;font-weight:600;cursor:pointer}
+</style>
 </head>
 <body>
 
-  <div id="canvas-container"></div>
+<div id="canvas-container"></div>
 
-  <!-- Controls panel -->
-  <div class="panel" id="controls">
+<!-- ═══ LEFT PANEL ═══ -->
+<div class="panel" id="panel-left">
+  <div id="logo-bar">
     <h1>DARWIN</h1>
+    <span class="version">v5 GRID</span>
+  </div>
 
-    <div class="control-group">
-      <div class="control-label">
-        Population
-        <span class="control-value" id="val-pop">8</span>
-      </div>
-      <input type="range" id="sl-pop" min="4" max="20" value="8" step="1" />
+  <div class="tabs">
+    <div class="tab active" data-tab="tab-evolution">EVOLVE</div>
+    <div class="tab" data-tab="tab-arena">ARENA</div>
+    <div class="tab" data-tab="tab-skills">SKILLS</div>
+  </div>
+
+  <!-- Tab: Evolution -->
+  <div class="tab-content active" id="tab-evolution">
+    <div class="form-group">
+      <div class="form-label">Population <span class="form-value" id="val-pop">8</span></div>
+      <input type="range" id="sl-pop" min="4" max="20" value="8" step="1">
     </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        Generations
-        <span class="control-value" id="val-gen">10</span>
-      </div>
-      <input type="range" id="sl-gen" min="3" max="50" value="10" step="1" />
+    <div class="form-group">
+      <div class="form-label">Generations <span class="form-value" id="val-gen">10</span></div>
+      <input type="range" id="sl-gen" min="3" max="50" value="10" step="1">
     </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        Mutation Rate
-        <span class="control-value" id="val-mut">0.30</span>
-      </div>
-      <input type="range" id="sl-mut" min="0.10" max="0.50" value="0.30" step="0.01" />
+    <div class="form-group">
+      <div class="form-label">Mutation Rate <span class="form-value" id="val-mut">0.30</span></div>
+      <input type="range" id="sl-mut" min="0.10" max="0.50" value="0.30" step="0.01">
     </div>
-
-    <div class="control-group">
-      <div class="control-label">
-        Symbol
-      </div>
-      <select id="sel-symbol" style="width:100%; padding:6px 10px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:6px; color:var(--text); font-family:var(--font); font-size:12px; cursor:pointer;">
-        <option value="PF_SOLUSD">SOL/USD</option>
-        <option value="PF_DOTUSD">DOT/USD</option>
-        <option value="PF_ADAUSD">ADA/USD</option>
-        <option value="PF_ETHUSD">ETH/USD</option>
-        <option value="PF_XBTUSD">BTC/USD</option>
-        <option value="PF_AVAXUSD">AVAX/USD</option>
-        <option value="PF_LINKUSD">LINK/USD</option>
+    <div class="form-group">
+      <div class="form-label">Symbol</div>
+      <select id="sel-symbol">
+        <option value="PF_SOLUSD">SOL / USD</option>
+        <option value="PF_DOTUSD">DOT / USD</option>
+        <option value="PF_ADAUSD">ADA / USD</option>
+        <option value="PF_ETHUSD">ETH / USD</option>
+        <option value="PF_XBTUSD">BTC / USD</option>
+        <option value="PF_AVAXUSD">AVAX / USD</option>
+        <option value="PF_LINKUSD">LINK / USD</option>
       </select>
     </div>
-
-    <div class="control-group">
-      <div class="control-label">Resolution</div>
-      <select id="sel-interval" style="width:100%; padding:4px 6px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:4px; color:var(--text); font-family:var(--font); font-size:10px; cursor:pointer;">
-        <option value="1">1min (from ticks)</option>
-        <option value="5">5min (from ticks)</option>
-        <option value="15">15min (from ticks)</option>
-        <option value="60">1h</option>
-        <option value="240" selected>4h (~1 year)</option>
-        <option value="1440">1d (~5 years)</option>
+    <div class="form-group">
+      <div class="form-label">Resolution</div>
+      <select id="sel-interval">
+        <option value="1">1min (ticks)</option>
+        <option value="5">5min (ticks)</option>
+        <option value="15">15min (ticks)</option>
+        <option value="60">1 hour</option>
+        <option value="240" selected>4 hours</option>
+        <option value="1440">1 day</option>
       </select>
     </div>
-    <div class="control-group">
-      <div class="control-label">Date Range</div>
-      <div style="display:flex; gap:6px;">
-        <input type="date" id="date-from" style="flex:1; padding:4px 6px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:4px; color:var(--text); font-family:var(--font); font-size:10px;" />
-        <input type="date" id="date-to" style="flex:1; padding:4px 6px; background:rgba(123,104,238,0.1); border:1px solid rgba(123,104,238,0.3); border-radius:4px; color:var(--text); font-family:var(--font); font-size:10px;" />
+    <div class="form-group">
+      <div class="form-label">Date Range</div>
+      <div class="date-row">
+        <input type="date" id="date-from" class="input-field">
+        <input type="date" id="date-to" class="input-field">
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Arena Mode -->
+  <div class="tab-content" id="tab-arena">
+    <div class="form-label" style="margin-bottom:8px">Trading Mode</div>
+    <div class="mode-cards">
+      <div class="mode-card active" data-mode="grid"><div class="mode-icon">⊞</div><div class="mode-name">Grid</div></div>
+      <div class="mode-card" data-mode="scalp"><div class="mode-icon">⚡</div><div class="mode-name">Scalp</div></div>
+      <div class="mode-card" data-mode="dca"><div class="mode-icon">▼</div><div class="mode-name">DCA</div></div>
+    </div>
+
+    <!-- Grid config -->
+    <div id="config-grid">
+      <div class="form-group">
+        <div class="form-label">Grid Spacing <span class="form-value" id="val-spacing">1.2%</span></div>
+        <input type="range" id="sl-spacing" min="0.3" max="3.0" value="1.2" step="0.1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Grid Levels <span class="form-value" id="val-levels">5</span></div>
+        <input type="range" id="sl-levels" min="2" max="12" value="5" step="1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Max Loss <span class="form-value" id="val-maxloss">15%</span></div>
+        <input type="range" id="sl-maxloss" min="5" max="30" value="15" step="1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Leverage <span class="form-value" id="val-leverage">5x</span></div>
+        <input type="range" id="sl-leverage" min="1" max="10" value="5" step="1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Fee <span class="form-value" id="val-fee">0.05%</span></div>
+        <input type="range" id="sl-fee" min="0.01" max="0.10" value="0.05" step="0.01">
       </div>
     </div>
 
-    <button id="btn-start">START EVOLUTION</button>
-    <button id="btn-replay" style="display:none; width:100%; margin-top:6px; padding:10px; background:rgba(78,205,196,0.2); border:1px solid rgba(78,205,196,0.4); color:#4ecdc4; border-radius:8px; font-family:var(--font); font-size:12px; font-weight:600; cursor:pointer; letter-spacing:1px;">REPLAY WINNER</button>
-    <div id="status-text">Ready</div>
+    <!-- Scalp config -->
+    <div id="config-scalp" style="display:none">
+      <div class="form-group">
+        <div class="form-label">Trailing Stop <span class="form-value" id="val-trail">1.0%</span></div>
+        <input type="range" id="sl-trail" min="0.3" max="5.0" value="1.0" step="0.1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Take Profit <span class="form-value" id="val-tp">2.0%</span></div>
+        <input type="range" id="sl-tp" min="0.5" max="10.0" value="2.0" step="0.5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Stop Loss <span class="form-value" id="val-sl">3.0%</span></div>
+        <input type="range" id="sl-sl" min="1.0" max="10.0" value="3.0" step="0.5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Min Hold (candles) <span class="form-value" id="val-minhold">3</span></div>
+        <input type="range" id="sl-minhold" min="1" max="20" value="3" step="1">
+      </div>
+    </div>
 
-    <div id="ws-indicator">
-      <div id="ws-dot"></div>
-      <span id="ws-label">Disconnected</span>
+    <!-- DCA config -->
+    <div id="config-dca" style="display:none">
+      <div class="form-group">
+        <div class="form-label">DCA Levels <span class="form-value" id="val-dca-levels">3</span></div>
+        <input type="range" id="sl-dca-levels" min="2" max="6" value="3" step="1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Level Spacing <span class="form-value" id="val-dca-spacing">1.0%</span></div>
+        <input type="range" id="sl-dca-spacing" min="0.5" max="5.0" value="1.0" step="0.5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Multiplier <span class="form-value" id="val-dca-mult">2.0x</span></div>
+        <input type="range" id="sl-dca-mult" min="1.0" max="3.0" value="2.0" step="0.5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Trailing Stop <span class="form-value" id="val-dca-trail">3.0%</span></div>
+        <input type="range" id="sl-dca-trail" min="0.5" max="5.0" value="3.0" step="0.5">
+      </div>
     </div>
   </div>
 
-  <!-- Info panel -->
-  <div class="panel" id="info">
-    <div class="info-section">
-      <div id="gen-display">0</div>
-      <div id="gen-label">Generation</div>
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="info-section">
-      <div class="section-label">Leaderboard</div>
-      <div id="leaderboard"></div>
-    </div>
-
-    <div class="divider" id="selected-divider" style="display:none"></div>
-
-    <div id="selected-detail">
-      <div class="section-label">Selected Agent</div>
-      <div class="detail-id" id="sel-id"></div>
-      <div class="detail-row"><span>PnL</span><span id="sel-pnl"></span></div>
-      <div class="detail-row"><span>Generation</span><span id="sel-gen"></span></div>
-      <div class="detail-row"><span>Parents</span><span id="sel-parents"></span></div>
-      <div class="skill-tags" id="sel-skills"></div>
-    </div>
+  <!-- Tab: Skills Browser -->
+  <div class="tab-content" id="tab-skills">
+    <div id="skills-list"></div>
   </div>
 
-  <!-- Tooltip -->
-  <div id="tooltip"></div>
+  <!-- Action bar (always visible) -->
+  <div id="action-bar">
+    <button class="btn-primary" id="btn-start">START EVOLUTION</button>
+    <button class="btn-secondary" id="btn-replay" style="display:none">REPLAY WINNER</button>
+  </div>
+</div>
 
-  <!-- Complete banner -->
-  <div id="complete-banner">
-    <h2>Evolution Complete</h2>
-    <div class="best-name" id="best-name">—</div>
-    <div class="best-pnl" id="best-pnl"></div>
-    <button id="btn-close-banner">CLOSE</button>
+<!-- ═══ RIGHT PANEL ═══ -->
+<div class="panel" id="panel-right">
+  <div id="gen-bar">
+    <div id="gen-number">0</div>
+    <div id="gen-label">Generation</div>
   </div>
 
-  <!-- Robustness report overlay -->
-  <div id="robustness-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100; overflow-y:auto;">
-    <div style="max-width:900px; margin:40px auto; padding:30px; background:rgba(15,15,30,0.95); border:1px solid var(--glass-border); border-radius:16px;">
-      <h2 style="color:var(--purple); font-size:20px; margin-bottom:8px;">ROBUSTNESS REPORT</h2>
-      <p style="color:var(--text-dim); font-size:11px; margin-bottom:20px;">Trained on Q1, tested on Q2-Q4. Agents ranked by number of profitable quarters.</p>
-      <div id="robustness-table"></div>
-      <button onclick="document.getElementById('robustness-overlay').style.display='none'" style="margin-top:20px; padding:10px 30px; background:var(--purple); color:#fff; border:none; border-radius:8px; font-family:var(--font); font-size:13px; cursor:pointer;">CLOSE</button>
-    </div>
+  <div class="section" id="lb-section">
+    <div class="section-title">Leaderboard</div>
+    <div id="leaderboard"></div>
   </div>
 
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-    // ─── CONSTANTS ───────────────────────────────────────────────────────────────
-
-    const GEN_COLORS = [
-      0x7b68ee, // purple (gen 0)
-      0x4fc3f7, // sky blue
-      0x81c784, // soft green
-      0xffb74d, // amber
-      0xf06292, // pink
-      0x4dd0e1, // teal
-      0xaed581, // lime
-      0xba68c8, // violet
-      0xff8a65, // orange
-      0x90caf9, // light blue
-    ];
-
-    const BASE_RADIUS   = 0.35;
-    const MAX_RADIUS    = 1.2;
-    const REPULSION     = 80;
-    const ATTRACTION    = 0.018;
-    const CENTER_PULL   = 0.004;
-    const DAMPING       = 0.85;
-    const SPREAD        = 18;
-    const EDGE_OPACITY  = 0.55;
-
-    // ─── THREE.JS SETUP ───────────────────────────────────────────────────────────
-
-    const container = document.getElementById('canvas-container');
-    const renderer  = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x0a0a0f, 1);
-    container.appendChild(renderer.domElement);
-
-    const scene  = new THREE.Scene();
-    scene.fog    = new THREE.FogExp2(0x0a0a0f, 0.022);
-
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 300);
-    camera.position.set(0, 8, 28);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.autoRotate      = true;
-    controls.autoRotateSpeed = 0.4;
-    controls.enableDamping   = true;
-    controls.dampingFactor   = 0.06;
-    controls.minDistance     = 5;
-    controls.maxDistance     = 80;
-
-    // Ambient + directional light
-    scene.add(new THREE.AmbientLight(0x1a1a2e, 4));
-    const dirLight = new THREE.DirectionalLight(0x7b68ee, 2.5);
-    dirLight.position.set(10, 20, 10);
-    scene.add(dirLight);
-    const backLight = new THREE.DirectionalLight(0x4fc3f7, 1.2);
-    backLight.position.set(-15, -10, -10);
-    scene.add(backLight);
-
-    // ─── STAR PARTICLES ───────────────────────────────────────────────────────────
-
-    (function buildStars() {
-      const count = 1800;
-      const geo   = new THREE.BufferGeometry();
-      const pos   = new Float32Array(count * 3);
-      for (let i = 0; i < count; i++) {
-        pos[i * 3]     = (Math.random() - 0.5) * 280;
-        pos[i * 3 + 1] = (Math.random() - 0.5) * 280;
-        pos[i * 3 + 2] = (Math.random() - 0.5) * 280;
-      }
-      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      const mat = new THREE.PointsMaterial({
-        color: 0xaaaacc,
-        size: 0.18,
-        transparent: true,
-        opacity: 0.55,
-        sizeAttenuation: true,
-      });
-      scene.add(new THREE.Points(geo, mat));
-    })();
-
-    // ─── STATE ────────────────────────────────────────────────────────────────────
-
-    const nodes    = new Map();  // id -> { mesh, vel, agent, dying, growing }
-    const edges    = [];         // THREE.Line objects
-    let   edgeGroup = new THREE.Group();
-    scene.add(edgeGroup);
-
-    let selectedId = null;
-    let wsConnected = false;
-    let running     = false;
-    let currentGen  = 0;
-
-    // ─── UI REFS ─────────────────────────────────────────────────────────────────
-
-    const btnStart       = document.getElementById('btn-start');
-    const statusText     = document.getElementById('status-text');
-    const wsDot          = document.getElementById('ws-dot');
-    const wsLabel        = document.getElementById('ws-label');
-    const infoPanel      = document.getElementById('info');
-    const genDisplay     = document.getElementById('gen-display');
-    const leaderboardEl  = document.getElementById('leaderboard');
-    const selectedDetail = document.getElementById('selected-detail');
-    const selDiv         = document.getElementById('selected-divider');
-    const selId          = document.getElementById('sel-id');
-    const selPnl         = document.getElementById('sel-pnl');
-    const selGen         = document.getElementById('sel-gen');
-    const selParents     = document.getElementById('sel-parents');
-    const selSkills      = document.getElementById('sel-skills');
-    const tooltip        = document.getElementById('tooltip');
-    const completeBanner = document.getElementById('complete-banner');
-    const bestName       = document.getElementById('best-name');
-    const bestPnl        = document.getElementById('best-pnl');
-    const btnCloseBanner = document.getElementById('btn-close-banner');
-
-    // ─── SLIDER BINDING ───────────────────────────────────────────────────────────
-
-    function bindSlider(sliderId, valueId, fmt) {
-      const sl  = document.getElementById(sliderId);
-      const val = document.getElementById(valueId);
-      sl.addEventListener('input', () => { val.textContent = fmt(sl.value); });
-    }
-    bindSlider('sl-pop',  'val-pop',  v => v);
-    bindSlider('sl-gen',  'val-gen',  v => v);
-    bindSlider('sl-mut',  'val-mut',  v => parseFloat(v).toFixed(2));
-
-    // ─── HELPERS ─────────────────────────────────────────────────────────────────
-
-    function agentRadius(fitness) {
-      // fitness can be negative — clamp to [0.1, 1]
-      const norm = Math.max(0.1, Math.min(1, (fitness + 100) / 200));
-      return BASE_RADIUS + norm * (MAX_RADIUS - BASE_RADIUS);
-    }
-
-    function agentColor(generation) {
-      return GEN_COLORS[generation % GEN_COLORS.length];
-    }
-
-    function formatPnl(v) {
-      if (v === undefined || v === null) return '—';
-      const n = parseFloat(v);
-      if (isNaN(n)) return '—';
-      return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
-    }
-
-    function pnlClass(v) {
-      if (v === undefined || v === null) return '';
-      return parseFloat(v) >= 0 ? 'pnl-pos' : 'pnl-neg';
-    }
-
-    function randomPos() {
-      return new THREE.Vector3(
-        (Math.random() - 0.5) * SPREAD,
-        (Math.random() - 0.5) * SPREAD,
-        (Math.random() - 0.5) * SPREAD
-      );
-    }
-
-    function countSharedSkills(a, b) {
-      const skillsA = Object.keys(a.skills || {});
-      const skillsB = new Set(Object.keys(b.skills || {}));
-      return skillsA.filter(s => skillsB.has(s)).length;
-    }
-
-    // ─── SCENE MANAGEMENT ────────────────────────────────────────────────────────
-
-    function clearScene() {
-      nodes.forEach(n => scene.remove(n.mesh));
-      nodes.clear();
-      clearEdges();
-      selectedId = null;
-      hideSelectedDetail();
-    }
-
-    function clearEdges() {
-      edges.forEach(e => edgeGroup.remove(e));
-      edges.length = 0;
-    }
-
-    function createAgentMesh(agent) {
-      const r   = agentRadius(agent.fitness ?? 0);
-      const geo = new THREE.SphereGeometry(r, 20, 16);
-      const mat = new THREE.MeshPhongMaterial({
-        color:       agentColor(agent.generation ?? 0),
-        emissive:    agentColor(agent.generation ?? 0),
-        emissiveIntensity: 0.25,
-        transparent: true,
-        opacity:     1,
-        shininess:   120,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      const pos  = randomPos();
-      mesh.position.copy(pos);
-      mesh.userData.agentId = agent.id;
-      scene.add(mesh);
-      return mesh;
-    }
-
-    function addAgent(agent) {
-      if (nodes.has(agent.id)) return;
-      const mesh = createAgentMesh(agent);
-      nodes.set(agent.id, {
-        mesh,
-        vel:     new THREE.Vector3(),
-        agent,
-        dying:   false,
-        growing: true,
-        growT:   0,
-      });
-      mesh.scale.setScalar(0.01);
-    }
-
-    function updateAgentMesh(nodeData, agent) {
-      nodeData.agent = agent;
-      const mesh = nodeData.mesh;
-      // Update geometry (radius)
-      const r = agentRadius(agent.fitness ?? 0);
-      mesh.geometry.dispose();
-      mesh.geometry = new THREE.SphereGeometry(r, 20, 16);
-      // Update color
-      const c = agentColor(agent.generation ?? 0);
-      mesh.material.color.setHex(c);
-      mesh.material.emissive.setHex(c);
-    }
-
-    function buildEdges(agentList) {
-      clearEdges();
-      for (let i = 0; i < agentList.length; i++) {
-        for (let j = i + 1; j < agentList.length; j++) {
-          const a = agentList[i];
-          const b = agentList[j];
-          const shared = countSharedSkills(a, b);
-          if (shared < 1) continue;
-
-          const nodeA = nodes.get(a.id);
-          const nodeB = nodes.get(b.id);
-          if (!nodeA || !nodeB) continue;
-
-          const opacity = Math.min(EDGE_OPACITY, 0.1 + shared * 0.12);
-          const geo = new THREE.BufferGeometry();
-          const positions = new Float32Array(6);
-          geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-          const mat = new THREE.LineBasicMaterial({
-            color: 0x7b68ee,
-            transparent: true,
-            opacity,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          });
-          const line = new THREE.Line(geo, mat);
-          line.userData.idA    = a.id;
-          line.userData.idB    = b.id;
-          edgeGroup.add(line);
-          edges.push(line);
-        }
-      }
-    }
-
-    function updateEdgePositions() {
-      edges.forEach(line => {
-        const na = nodes.get(line.userData.idA);
-        const nb = nodes.get(line.userData.idB);
-        if (!na || !nb) return;
-        const pos = line.geometry.attributes.position;
-        pos.setXYZ(0, na.mesh.position.x, na.mesh.position.y, na.mesh.position.z);
-        pos.setXYZ(1, nb.mesh.position.x, nb.mesh.position.y, nb.mesh.position.z);
-        pos.needsUpdate = true;
-      });
-    }
-
-    // ─── FORCE-DIRECTED PHYSICS ───────────────────────────────────────────────────
-
-    const _diff = new THREE.Vector3();
-
-    function applyForces(dt) {
-      const nodeArr = [...nodes.values()].filter(n => !n.dying);
-
-      // Repulsion between all pairs
-      for (let i = 0; i < nodeArr.length; i++) {
-        for (let j = i + 1; j < nodeArr.length; j++) {
-          const a = nodeArr[i];
-          const b = nodeArr[j];
-          _diff.subVectors(b.mesh.position, a.mesh.position);
-          const distSq = Math.max(0.5, _diff.lengthSq());
-          const force  = REPULSION / distSq;
-          _diff.normalize().multiplyScalar(force * dt);
-          a.vel.sub(_diff);
-          b.vel.add(_diff);
-        }
-      }
-
-      // Attraction along edges
-      edges.forEach(line => {
-        const na = nodes.get(line.userData.idA);
-        const nb = nodes.get(line.userData.idB);
-        if (!na || !nb || na.dying || nb.dying) return;
-        _diff.subVectors(nb.mesh.position, na.mesh.position);
-        const dist   = _diff.length();
-        const force  = dist * ATTRACTION;
-        _diff.normalize().multiplyScalar(force * dt);
-        na.vel.add(_diff);
-        nb.vel.sub(_diff);
-      });
-
-      // Center gravity + apply velocity
-      nodeArr.forEach(n => {
-        n.vel.addScaledVector(n.mesh.position, -CENTER_PULL * dt * 60);
-        n.vel.multiplyScalar(DAMPING);
-        n.mesh.position.addScaledVector(n.vel, dt * 60);
-      });
-    }
-
-    // ─── ANIMATIONS ──────────────────────────────────────────────────────────────
-
-    function animateNodes(dt) {
-      nodes.forEach((n, id) => {
-        if (n.growing) {
-          n.growT = Math.min(1, n.growT + dt * 2.2);
-          const s = easeOutBack(n.growT);
-          n.mesh.scale.setScalar(s);
-          if (n.growT >= 1) n.growing = false;
-        }
-
-        if (n.dying) {
-          n.dyingT = Math.min(1, (n.dyingT || 0) + dt * 2.5);
-          const s = 1 - n.dyingT;
-          n.mesh.scale.setScalar(Math.max(0.001, s));
-          n.mesh.material.opacity = 1 - n.dyingT;
-          if (n.dyingT >= 1) {
-            scene.remove(n.mesh);
-            n.mesh.geometry.dispose();
-            n.mesh.material.dispose();
-            nodes.delete(id);
-          }
-        }
-      });
-    }
-
-    function easeOutBack(t) {
-      const c1 = 1.70158;
-      const c3 = c1 + 1;
-      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-    }
-
-    // ─── LEADERBOARD ─────────────────────────────────────────────────────────────
-
-    function updateLeaderboard(agents) {
-      const alive = agents.filter(a => a.alive !== false);
-      alive.sort((a, b) => (b.fitness ?? -Infinity) - (a.fitness ?? -Infinity));
-      const top5  = alive.slice(0, 5);
-
-      leaderboardEl.innerHTML = top5.map((a, i) => `
-        <div class="lb-row">
-          <span class="lb-rank">${i + 1}</span>
-          <span class="lb-name">${a.id}</span>
-          <span class="lb-pnl ${pnlClass(a.fitness)}">${formatPnl(a.fitness)}</span>
-        </div>
-      `).join('');
-    }
-
-    // ─── SELECTED AGENT ──────────────────────────────────────────────────────────
-
-    function showSelectedAgent(agent) {
-      selectedDetail.classList.add('visible');
-      selDiv.style.display = 'block';
-
-      selId.textContent  = agent.id;
-      selPnl.textContent = formatPnl(agent.fitness);
-      selPnl.className   = pnlClass(agent.fitness);
-      selGen.textContent = agent.generation ?? '—';
-
-      const parents = agent.parent_ids;
-      selParents.textContent = (parents && parents.length)
-        ? parents.join(', ')
-        : 'None (seed)';
-
-      const skills = Object.entries(agent.skills || {});
-      selSkills.innerHTML = skills
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, w]) => `<span class="skill-tag">${name} <b>${(w * 100).toFixed(0)}</b></span>`)
-        .join('');
-    }
-
-    function hideSelectedDetail() {
-      selectedDetail.classList.remove('visible');
-      selDiv.style.display = 'none';
-      selectedId = null;
-    }
-
-    // ─── RAYCASTER ────────────────────────────────────────────────────────────────
-
-    const raycaster = new THREE.Raycaster();
-    const mouse     = new THREE.Vector2();
-
-    renderer.domElement.addEventListener('click', ev => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x =  ((ev.clientX - rect.left)  / rect.width)  * 2 - 1;
-      mouse.y = -((ev.clientY - rect.top)   / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const meshes = [...nodes.values()].map(n => n.mesh);
-      const hits   = raycaster.intersectObjects(meshes);
-
-      if (hits.length > 0) {
-        const id = hits[0].object.userData.agentId;
-        if (selectedId === id) {
-          hideSelectedDetail();
-          deselectMesh(id);
-        } else {
-          if (selectedId) deselectMesh(selectedId);
-          selectedId = id;
-          selectMesh(id);
-          const node = nodes.get(id);
-          if (node) showSelectedAgent(node.agent);
-        }
-      } else {
-        if (selectedId) deselectMesh(selectedId);
-        hideSelectedDetail();
-      }
-    });
-
-    renderer.domElement.addEventListener('mousemove', ev => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x =  ((ev.clientX - rect.left)  / rect.width)  * 2 - 1;
-      mouse.y = -((ev.clientY - rect.top)   / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const meshes = [...nodes.values()].map(n => n.mesh);
-      const hits   = raycaster.intersectObjects(meshes);
-
-      if (hits.length > 0) {
-        const id   = hits[0].object.userData.agentId;
-        const node = nodes.get(id);
-        if (node) {
-          tooltip.textContent = `${id}  ${formatPnl(node.agent.fitness)}`;
-          tooltip.classList.add('visible');
-          tooltip.style.left = (ev.clientX + 14) + 'px';
-          tooltip.style.top  = (ev.clientY - 10) + 'px';
-          renderer.domElement.style.cursor = 'pointer';
-        }
-      } else {
-        tooltip.classList.remove('visible');
-        renderer.domElement.style.cursor = 'default';
-      }
-    });
-
-    function selectMesh(id) {
-      const n = nodes.get(id);
-      if (!n) return;
-      n.mesh.material.emissiveIntensity = 0.8;
-      n.mesh.material.wireframe = false;
-      // add selection ring
-      const r  = agentRadius(n.agent.fitness ?? 0) * 1.35;
-      const rg = new THREE.RingGeometry(r, r + 0.08, 40);
-      const rm = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
-      const ring = new THREE.Mesh(rg, rm);
-      ring.userData.isRing = true;
-      ring.lookAt(camera.position);
-      n.mesh.add(ring);
-    }
-
-    function deselectMesh(id) {
-      const n = nodes.get(id);
-      if (!n) return;
-      n.mesh.material.emissiveIntensity = 0.25;
-      // remove rings
-      const toRemove = n.mesh.children.filter(c => c.userData.isRing);
-      toRemove.forEach(c => {
-        n.mesh.remove(c);
-        c.geometry.dispose();
-        c.material.dispose();
-      });
-    }
-
-    // ─── WEBSOCKET ────────────────────────────────────────────────────────────────
-
-    let ws = null;
-
-    function wsConnect() {
-      if (ws && ws.readyState < 2) ws.close();
-
-      ws = new WebSocket('ws://localhost:8765');
-
-      ws.onopen = () => {
-        wsConnected = true;
-        wsDot.classList.add('connected');
-        wsLabel.textContent = 'Connected';
-        setStatus('Connected — ready');
-        btnStart.disabled = false;
-      };
-
-      ws.onclose = () => {
-        wsConnected = false;
-        wsDot.classList.remove('connected');
-        wsLabel.textContent = 'Disconnected';
-        setStatus('WebSocket disconnected');
-        if (running) {
-          running = false;
-          btnStart.disabled = false;
-        }
-        setTimeout(wsConnect, 3000);
-      };
-
-      ws.onerror = () => {
-        wsLabel.textContent = 'Connection failed';
-        setStatus('Cannot reach ws://localhost:8765');
-      };
-
-      ws.onmessage = ev => {
-        let msg;
-        try { msg = JSON.parse(ev.data); } catch (e) { return; }
-        handleMessage(msg);
-      };
-    }
-
-    function handleMessage(msg) {
-      switch (msg.type) {
-        case 'init':       onInit(msg);       break;
-        case 'generation': onGeneration(msg); break;
-        case 'deaths':     onDeaths(msg);     break;
-        case 'births':     onBirths(msg);     break;
-        case 'complete':        onComplete(msg);        break;
-        case 'quarter_result':  onQuarterResult(msg);   break;
-        case 'robustness_report': onRobustness(msg);    break;
-        case 'replay_result':     onReplayResult(msg);  break;
-        case 'status':          setStatus(msg.message || ''); break;
-        case 'error':           setStatus('ERROR: ' + (msg.message || '?')); break;
-      }
-    }
-
-    function onInit(msg) {
-      clearScene();
-      currentGen = 0;
-      genDisplay.textContent = '0';
-      infoPanel.classList.add('visible');
-      completeBanner.classList.remove('visible');
-
-      const agents = msg.agents || [];
-      agents.forEach(a => addAgent(a));
-      buildEdges(agents);
-      updateLeaderboard(agents);
-      setStatus(`Init: ${agents.length} agents, ${msg.candle_count ?? '?'} candles`);
-    }
-
-    function onGeneration(msg) {
-      currentGen = msg.gen;
-      genDisplay.textContent = msg.gen;
-
-      const agents = msg.agents || [];
-      agents.forEach(a => {
-        const n = nodes.get(a.id);
-        if (n) updateAgentMesh(n, a);
-        else   addAgent(a);
-      });
-      buildEdges(agents.filter(a => a.alive !== false));
-      updateLeaderboard(agents);
-      setStatus(`Generation ${msg.gen}`);
-
-      // refresh selected detail
-      if (selectedId) {
-        const n = nodes.get(selectedId);
-        if (n) showSelectedAgent(n.agent);
-      }
-    }
-
-    function onDeaths(msg) {
-      const dead = msg.dead || [];
-      dead.forEach(d => {
-        const id = (typeof d === 'string') ? d : d.id;
-        const n = nodes.get(id);
-        if (n && !n.dying) {
-          n.dying  = true;
-          n.dyingT = 0;
-        }
-      });
-      setStatus(`Gen ${msg.gen}: ${dead.length} agent(s) died`);
-    }
-
-    function onBirths(msg) {
-      const born = msg.born || [];
-      born.forEach(a => {
-        if (!nodes.has(a.id)) addAgent(a);
-      });
-      setStatus(`Gen ${msg.gen}: ${born.length} agent(s) born`);
-    }
-
-    function onComplete(msg) {
-      running = false;
-      btnStart.disabled = false;
-      setStatus('Evolution complete');
-
-      const ranking = msg.final_ranking || [];
-      // Show ALL agents in final leaderboard (no alive filter)
-      if (ranking.length) {
-        const sorted = [...ranking].sort((a, b) => (b.fitness ?? -Infinity) - (a.fitness ?? -Infinity));
-        const top5 = sorted.slice(0, 5);
-        leaderboardEl.innerHTML = top5.map((a, i) => `
-          <div class="lb-row">
-            <span class="lb-rank">${i + 1}</span>
-            <span class="lb-name">${a.id}</span>
-            <span class="lb-pnl ${pnlClass(a.fitness)}">${formatPnl(a.fitness)}</span>
-          </div>
-        `).join('');
-      }
-
-      const best = msg.best;
-      if (best) {
-        bestName.textContent = best.id;
-        const pnl = formatPnl(best.fitness);
-        bestPnl.textContent  = pnl;
-        bestPnl.className    = 'best-pnl ' + pnlClass(best.fitness);
-
-        // Show best agent's skills in selected panel
-        showSelectedAgent(best);
-
-        // Save winner for replay
-        lastWinner = best;
-        document.getElementById('btn-replay').style.display = 'block';
-      }
-      completeBanner.classList.add('visible');
-    }
-
-    function onQuarterResult(msg) {
-      setStatus(`${msg.label}: best = ${msg.best?.id ?? '?'} (${formatPnl(msg.best?.fitness)})`);
-    }
-
-    function onRobustness(msg) {
-      const overlay = document.getElementById('robustness-overlay');
-      const table = document.getElementById('robustness-table');
-      const agents = msg.agents || [];
-      const quarters = msg.quarters || [];
-
-      let html = `<table style="width:100%; border-collapse:collapse; font-size:12px;">
-        <thead>
-          <tr style="border-bottom:1px solid var(--glass-border);">
-            <th style="text-align:left; padding:8px; color:var(--text-dim);">#</th>
-            <th style="text-align:left; padding:8px; color:var(--text-dim);">Agent</th>`;
-      quarters.forEach(q => {
-        html += `<th style="text-align:right; padding:8px; color:var(--text-dim);">${q}</th>`;
-      });
-      html += `<th style="text-align:right; padding:8px; color:var(--text-dim);">Total</th>
-            <th style="text-align:center; padding:8px; color:var(--text-dim);">Win Q</th>
-          </tr>
-        </thead><tbody>`;
-
-      agents.forEach((a, i) => {
-        html += `<tr style="border-bottom:1px solid rgba(123,104,238,0.1);">
-          <td style="padding:8px; color:var(--text-dim);">${i + 1}</td>
-          <td style="padding:8px; color:var(--purple); font-weight:600;">${a.id}</td>`;
-        quarters.forEach(q => {
-          const pnl = a.quarters[q] ?? 0;
-          const cls = pnl >= 0 ? 'color:var(--green)' : 'color:var(--red)';
-          html += `<td style="text-align:right; padding:8px; ${cls};">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>`;
-        });
-        const totalCls = a.total_pnl >= 0 ? 'color:var(--green); font-weight:700' : 'color:var(--red); font-weight:700';
-        html += `<td style="text-align:right; padding:8px; ${totalCls};">${a.total_pnl >= 0 ? '+' : ''}${a.total_pnl.toFixed(2)}%</td>`;
-        const stars = '★'.repeat(a.positive_quarters) + '☆'.repeat(4 - a.positive_quarters);
-        html += `<td style="text-align:center; padding:8px; color:var(--purple);">${stars}</td>`;
-        html += `</tr>`;
-
-        // Skills row
-        const skills = Object.entries(a.skills || {}).sort((x, y) => y[1] - x[1]);
-        html += `<tr><td></td><td colspan="${quarters.length + 2}" style="padding:2px 8px 10px;">`;
-        skills.forEach(([name, w]) => {
-          html += `<span style="display:inline-block; padding:2px 6px; margin:1px; background:rgba(123,104,238,0.15); border:1px solid rgba(123,104,238,0.3); border-radius:3px; font-size:10px; color:#b0a0ff;">${name} <b>${(w * 100).toFixed(0)}</b></span> `;
-        });
-        html += `</td></tr>`;
-      });
-
-      html += '</tbody></table>';
-      table.innerHTML = html;
-      overlay.style.display = 'block';
-    }
-
-    function onReplayResult(msg) {
-      running = false;
-      btnStart.disabled = false;
-
-      const overlay = document.getElementById('robustness-overlay');
-      const table = document.getElementById('robustness-table');
-      const a = msg.agent;
-      const trades = msg.trades || [];
-      const totalTrades = trades.length;
-      const wins = trades.filter(t => t.pnl > 0).length;
-      const losses = trades.filter(t => t.pnl < 0).length;
-      const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
-
-      let html = `<h3 style="color:var(--purple); margin-bottom:12px;">REPLAY: ${a.id}</h3>`;
-      html += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-bottom:20px;">
-        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
-          <div style="font-size:20px; font-weight:700; color:${msg.pnl >= 0 ? 'var(--green)' : 'var(--red)'};">${msg.pnl >= 0 ? '+' : ''}${msg.pnl.toFixed(2)}%</div>
-          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">TOTAL PnL</div>
-        </div>
-        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
-          <div style="font-size:20px; font-weight:700; color:var(--text);">${totalTrades}</div>
-          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">TRADES</div>
-        </div>
-        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
-          <div style="font-size:20px; font-weight:700; color:var(--green);">${winRate}%</div>
-          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">WIN RATE</div>
-        </div>
-        <div style="padding:12px; background:rgba(123,104,238,0.1); border-radius:8px; text-align:center;">
-          <div style="font-size:20px; font-weight:700; color:var(--text);">${msg.candles}</div>
-          <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">CANDLES</div>
-        </div>
+  <div id="agent-detail">
+    <div class="section-title">Selected Agent</div>
+    <div class="agent-id" id="sel-id"></div>
+    <div class="agent-row"><span>PnL</span><span id="sel-pnl"></span></div>
+    <div class="agent-row"><span>Generation</span><span id="sel-gen"></span></div>
+    <div class="agent-row"><span>Parents</span><span id="sel-parents"></span></div>
+    <div class="skill-tags" id="sel-skills"></div>
+  </div>
+
+  <div id="replay-section">
+    <div class="section-title">Replay</div>
+    <div class="stat-grid" id="replay-stats"></div>
+    <canvas id="equity-chart"></canvas>
+    <div class="section-title" style="margin-top:8px">Trade Log</div>
+    <div id="trade-log"></div>
+  </div>
+</div>
+
+<!-- ═══ BOTTOM BAR ═══ -->
+<div id="bottom-bar">
+  <div class="status-dot" id="ws-dot"></div>
+  <div id="status-text">Connecting...</div>
+  <div id="ws-label">offline</div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip"></div>
+
+<!-- Complete banner -->
+<div id="complete-banner">
+  <h2>Evolution Complete</h2>
+  <div class="best-name" id="best-name">—</div>
+  <div class="best-pnl" id="best-pnl"></div>
+  <button id="btn-close-banner">CLOSE</button>
+</div>
+
+<!-- Robustness overlay -->
+<div id="robustness-overlay">
+  <div class="robustness-inner">
+    <h2>Robustness Report</h2>
+    <div class="sub">Trained on Q1, tested on Q2–Q4. Ranked by profitable quarters.</div>
+    <div id="robustness-table"></div>
+    <button class="btn-close" onclick="document.getElementById('robustness-overlay').style.display='none'">CLOSE</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ═══ CONSTANTS ═══
+const GEN_COLORS = [0x8b7cf7,0x22d3ee,0x34d399,0xfbbf24,0xf472b6,0x4dd0e1,0xaed581,0xba68c8,0xff8a65,0x90caf9];
+const BASE_RADIUS=0.35,MAX_RADIUS=1.2,REPULSION=80,ATTRACTION=0.018,CENTER_PULL=0.004,DAMPING=0.85,SPREAD=18,EDGE_OPACITY=0.55;
+const PANEL_W = 300;
+
+// ═══ THREE.JS ═══
+const container = document.getElementById('canvas-container');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setClearColor(0x06060c,1);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x06060c,0.022);
+const camera = new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,0.1,300);
+camera.position.set(0,8,28);
+
+const controls = new OrbitControls(camera,renderer.domElement);
+controls.autoRotate=true;controls.autoRotateSpeed=0.4;controls.enableDamping=true;controls.dampingFactor=0.06;controls.minDistance=5;controls.maxDistance=80;
+
+scene.add(new THREE.AmbientLight(0x1a1a2e,4));
+const dl=new THREE.DirectionalLight(0x8b7cf7,2.5);dl.position.set(10,20,10);scene.add(dl);
+const bl=new THREE.DirectionalLight(0x22d3ee,1.2);bl.position.set(-15,-10,-10);scene.add(bl);
+
+// Stars
+(function(){const n=1800,g=new THREE.BufferGeometry(),p=new Float32Array(n*3);for(let i=0;i<n;i++){p[i*3]=(Math.random()-0.5)*280;p[i*3+1]=(Math.random()-0.5)*280;p[i*3+2]=(Math.random()-0.5)*280}g.setAttribute('position',new THREE.BufferAttribute(p,3));scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xaaaacc,size:0.18,transparent:true,opacity:0.55,sizeAttenuation:true})))})();
+
+// ═══ STATE ═══
+const nodes=new Map();const edges=[];let edgeGroup=new THREE.Group();scene.add(edgeGroup);
+let selectedId=null,wsConnected=false,running=false,currentGen=0,lastWinner=null;
+
+// ═══ UI REFS ═══
+const btnStart=document.getElementById('btn-start');
+const statusText=document.getElementById('status-text');
+const wsDot=document.getElementById('ws-dot');
+const wsLabel=document.getElementById('ws-label');
+const genDisplay=document.getElementById('gen-number');
+const leaderboardEl=document.getElementById('leaderboard');
+const agentDetail=document.getElementById('agent-detail');
+const selId=document.getElementById('sel-id');
+const selPnl=document.getElementById('sel-pnl');
+const selGen=document.getElementById('sel-gen');
+const selParents=document.getElementById('sel-parents');
+const selSkills=document.getElementById('sel-skills');
+const tooltip=document.getElementById('tooltip');
+const completeBanner=document.getElementById('complete-banner');
+const bestName=document.getElementById('best-name');
+const bestPnl=document.getElementById('best-pnl');
+const btnCloseBanner=document.getElementById('btn-close-banner');
+const replaySection=document.getElementById('replay-section');
+
+// ═══ TABS ═══
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ═══ MODE CARDS ═══
+document.querySelectorAll('.mode-card').forEach(card=>{
+  card.addEventListener('click',()=>{
+    document.querySelectorAll('.mode-card').forEach(c=>c.classList.remove('active'));
+    card.classList.add('active');
+    document.getElementById('config-grid').style.display=card.dataset.mode==='grid'?'block':'none';
+    document.getElementById('config-scalp').style.display=card.dataset.mode==='scalp'?'block':'none';
+    document.getElementById('config-dca').style.display=card.dataset.mode==='dca'?'block':'none';
+  });
+});
+
+// ═══ SLIDER BINDINGS ═══
+function bind(sid,vid,fmt){const s=document.getElementById(sid),v=document.getElementById(vid);if(s&&v)s.addEventListener('input',()=>v.textContent=fmt(s.value))}
+bind('sl-pop','val-pop',v=>v);bind('sl-gen','val-gen',v=>v);bind('sl-mut','val-mut',v=>parseFloat(v).toFixed(2));
+bind('sl-spacing','val-spacing',v=>v+'%');bind('sl-levels','val-levels',v=>v);bind('sl-maxloss','val-maxloss',v=>v+'%');bind('sl-leverage','val-leverage',v=>v+'x');bind('sl-fee','val-fee',v=>v+'%');
+bind('sl-trail','val-trail',v=>v+'%');bind('sl-tp','val-tp',v=>v+'%');bind('sl-sl','val-sl',v=>v+'%');bind('sl-minhold','val-minhold',v=>v);
+bind('sl-dca-levels','val-dca-levels',v=>v);bind('sl-dca-spacing','val-dca-spacing',v=>v+'%');bind('sl-dca-mult','val-dca-mult',v=>v+'x');bind('sl-dca-trail','val-dca-trail',v=>v+'%');
+
+// ═══ SKILLS BROWSER ═══
+const SKILL_CATEGORIES = {
+  'Buy Signals': ['buy-bb-lower','buy-bb-squeeze','buy-breakout-high','buy-composite','buy-double-green','buy-ema-golden-cross','buy-ema-trend-up','buy-ema8-cross-ema21','buy-engulfing','buy-green-after-red','buy-hammer','buy-on-big-red-body','buy-on-dip-0.5pct','buy-on-dip-1pct','buy-on-dip-2pct','buy-rsi-oversold','buy-volume-spike','buy-when-close-near-low','buy-when-low-touches-support'],
+  'Sell Signals': ['sell-bb-squeeze-down','sell-bb-upper','sell-breakdown-low','sell-double-red','sell-ema-death-cross','sell-ema-trend-down','sell-ema8-cross-ema21','sell-engulfing','sell-on-big-green-body','sell-on-pump-0.5pct','sell-on-pump-1pct','sell-on-pump-2pct','sell-red-after-green','sell-rsi-overbought','sell-shooting-star','sell-volume-spike','sell-when-close-near-high','sell-when-high-touches-resistance'],
+  'Trailing Stops': ['trailing-stop-0.5pct','trailing-stop-1pct','trailing-stop-3pct'],
+  'Take Profit': ['take-profit-1pct','take-profit-2pct','take-profit-5pct'],
+  'Filters': ['hold-adx-no-trend','hold-adx-too-strong','hold-if-tiny-range','hold-in-low-volume','never-buy-in-downtrend'],
+};
+const skillStates = {}; // skill -> {enabled, weight}
+
+function buildSkillsBrowser() {
+  const el = document.getElementById('skills-list');
+  let html = '';
+  for (const [cat, skills] of Object.entries(SKILL_CATEGORIES)) {
+    html += `<div class="skill-category"><div class="skill-cat-header">${cat}</div>`;
+    for (const s of skills) {
+      skillStates[s] = { enabled: true, weight: 0.8 };
+      html += `<div class="skill-item">
+        <div class="skill-toggle on" data-skill="${s}"></div>
+        <span class="skill-name">${s}</span>
       </div>`;
-
-      // Skills
-      html += `<div style="margin-bottom:16px;">`;
-      Object.entries(a.skills || {}).sort((x, y) => y[1] - x[1]).forEach(([name, w]) => {
-        html += `<span style="display:inline-block; padding:3px 8px; margin:2px; background:rgba(123,104,238,0.15); border:1px solid rgba(123,104,238,0.3); border-radius:4px; font-size:10px; color:#b0a0ff;">${name} <b>${(w * 100).toFixed(0)}</b></span> `;
-      });
-      html += `</div>`;
-
-      // Equity curve (simple text-based)
-      if (msg.equity && msg.equity.length > 0) {
-        const maxEq = Math.max(...msg.equity);
-        const minEq = Math.min(...msg.equity);
-        const range = maxEq - minEq || 1;
-        const W = 800, H = 150;
-        let svg = `<svg width="${W}" height="${H}" style="width:100%; border:1px solid rgba(123,104,238,0.2); border-radius:8px; background:rgba(0,0,0,0.3);">`;
-        // Zero line
-        const zeroY = H - ((100 - minEq) / range) * H;
-        svg += `<line x1="0" y1="${zeroY}" x2="${W}" y2="${zeroY}" stroke="rgba(255,255,255,0.1)" stroke-dasharray="4"/>`;
-        // Curve
-        const step = W / (msg.equity.length - 1);
-        let path = '';
-        msg.equity.forEach((v, i) => {
-          const x = i * step;
-          const y = H - ((v - minEq) / range) * H;
-          path += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)} `;
-        });
-        const lastVal = msg.equity[msg.equity.length - 1];
-        const curveColor = lastVal >= 100 ? '#39ff9a' : '#ff4d6d';
-        svg += `<path d="${path}" fill="none" stroke="${curveColor}" stroke-width="2"/>`;
-        svg += `<text x="8" y="16" fill="var(--text-dim)" font-size="10" font-family="var(--font)">Equity Curve ($100 start)</text>`;
-        svg += `</svg>`;
-        html += svg;
-      }
-
-      // Trade list
-      if (trades.length > 0) {
-        html += `<div style="margin-top:16px; max-height:200px; overflow-y:auto;">
-          <table style="width:100%; border-collapse:collapse; font-size:11px;">
-            <thead><tr style="border-bottom:1px solid var(--glass-border);">
-              <th style="text-align:left; padding:4px; color:var(--text-dim);">#</th>
-              <th style="text-align:left; padding:4px; color:var(--text-dim);">Action</th>
-              <th style="text-align:right; padding:4px; color:var(--text-dim);">Price</th>
-              <th style="text-align:right; padding:4px; color:var(--text-dim);">PnL</th>
-            </tr></thead><tbody>`;
-        trades.forEach((t, i) => {
-          const cls = t.pnl > 0 ? 'color:var(--green)' : t.pnl < 0 ? 'color:var(--red)' : 'color:var(--text-dim)';
-          html += `<tr style="border-bottom:1px solid rgba(123,104,238,0.05);">
-            <td style="padding:3px 4px; color:var(--text-dim);">${i + 1}</td>
-            <td style="padding:3px 4px; color:${t.action === 'buy' ? 'var(--green)' : 'var(--red)'};">${t.action.toUpperCase()}</td>
-            <td style="padding:3px 4px; text-align:right;">${t.price.toFixed(4)}</td>
-            <td style="padding:3px 4px; text-align:right; ${cls};">${t.pnl !== null ? (t.pnl >= 0 ? '+' : '') + t.pnl.toFixed(2) + '%' : '—'}</td>
-          </tr>`;
-        });
-        html += '</tbody></table></div>';
-      }
-
-      table.innerHTML = html;
-      overlay.style.display = 'block';
     }
-
-    function setStatus(text) {
-      statusText.textContent = text;
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+  el.addEventListener('click', e => {
+    const toggle = e.target.closest('.skill-toggle');
+    if (toggle) {
+      const sk = toggle.dataset.skill;
+      toggle.classList.toggle('on');
+      skillStates[sk].enabled = toggle.classList.contains('on');
     }
+  });
+}
+buildSkillsBrowser();
 
-    // ─── START BUTTON ─────────────────────────────────────────────────────────────
+// ═══ HELPERS ═══
+function agentRadius(f){const n=Math.max(0.1,Math.min(1,(f+100)/200));return BASE_RADIUS+n*(MAX_RADIUS-BASE_RADIUS)}
+function agentColor(g){return GEN_COLORS[g%GEN_COLORS.length]}
+function formatPnl(v){if(v==null)return'—';const n=parseFloat(v);return isNaN(n)?'—':(n>=0?'+':'')+n.toFixed(2)+'%'}
+function pnlClass(v){return v==null?'':parseFloat(v)>=0?'pnl-pos':'pnl-neg'}
+function randomPos(){return new THREE.Vector3((Math.random()-0.5)*SPREAD,(Math.random()-0.5)*SPREAD,(Math.random()-0.5)*SPREAD)}
+function countShared(a,b){const sa=Object.keys(a.skills||{});const sb=new Set(Object.keys(b.skills||{}));return sa.filter(s=>sb.has(s)).length}
+function easeOutBack(t){const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)}
 
-    btnStart.addEventListener('click', () => {
-      if (!wsConnected) { setStatus('Not connected'); return; }
-      if (running)      return;
+// ═══ SCENE ═══
+function clearScene(){nodes.forEach(n=>scene.remove(n.mesh));nodes.clear();clearEdges();selectedId=null;hideDetail()}
+function clearEdges(){edges.forEach(e=>edgeGroup.remove(e));edges.length=0}
 
-      running = true;
-      btnStart.disabled = true;
-      completeBanner.classList.remove('visible');
-      setStatus('Starting…');
+function createMesh(agent){
+  const r=agentRadius(agent.fitness??0);
+  const mesh=new THREE.Mesh(new THREE.SphereGeometry(r,20,16),new THREE.MeshPhongMaterial({color:agentColor(agent.generation??0),emissive:agentColor(agent.generation??0),emissiveIntensity:0.25,transparent:true,opacity:1,shininess:120}));
+  mesh.position.copy(randomPos());mesh.userData.agentId=agent.id;scene.add(mesh);return mesh;
+}
+function addAgent(a){if(nodes.has(a.id))return;const m=createMesh(a);nodes.set(a.id,{mesh:m,vel:new THREE.Vector3(),agent:a,dying:false,growing:true,growT:0});m.scale.setScalar(0.01)}
+function updateMesh(nd,a){nd.agent=a;const r=agentRadius(a.fitness??0);nd.mesh.geometry.dispose();nd.mesh.geometry=new THREE.SphereGeometry(r,20,16);const c=agentColor(a.generation??0);nd.mesh.material.color.setHex(c);nd.mesh.material.emissive.setHex(c)}
 
-      const config = {
-        population:    parseInt(document.getElementById('sl-pop').value),
-        generations:   parseInt(document.getElementById('sl-gen').value),
-        mutation_rate: parseFloat(document.getElementById('sl-mut').value),
-        symbol:        document.getElementById('sel-symbol').value,
-        interval:      parseInt(document.getElementById('sel-interval').value),
-        date_from:     document.getElementById('date-from').value || null,
-        date_to:       document.getElementById('date-to').value || null,
-      };
+function buildEdges(list){clearEdges();for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const s=countShared(list[i],list[j]);if(s<1)continue;const na=nodes.get(list[i].id),nb=nodes.get(list[j].id);if(!na||!nb)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x8b7cf7,transparent:true,opacity:Math.min(EDGE_OPACITY,0.1+s*0.12),blending:THREE.AdditiveBlending,depthWrite:false}));l.userData.idA=list[i].id;l.userData.idB=list[j].id;edgeGroup.add(l);edges.push(l)}}
+function updateEdgePos(){edges.forEach(l=>{const a=nodes.get(l.userData.idA),b=nodes.get(l.userData.idB);if(!a||!b)return;const p=l.geometry.attributes.position;p.setXYZ(0,a.mesh.position.x,a.mesh.position.y,a.mesh.position.z);p.setXYZ(1,b.mesh.position.x,b.mesh.position.y,b.mesh.position.z);p.needsUpdate=true})}
 
-      ws.send(JSON.stringify({ type: 'start', config }));
-    });
+// ═══ PHYSICS ═══
+const _d=new THREE.Vector3();
+function applyForces(dt){const arr=[...nodes.values()].filter(n=>!n.dying);for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++){_d.subVectors(arr[j].mesh.position,arr[i].mesh.position);const ds=Math.max(0.5,_d.lengthSq()),f=REPULSION/ds;_d.normalize().multiplyScalar(f*dt);arr[i].vel.sub(_d);arr[j].vel.add(_d)}edges.forEach(l=>{const a=nodes.get(l.userData.idA),b=nodes.get(l.userData.idB);if(!a||!b||a.dying||b.dying)return;_d.subVectors(b.mesh.position,a.mesh.position);const f=_d.length()*ATTRACTION;_d.normalize().multiplyScalar(f*dt);a.vel.add(_d);b.vel.sub(_d)});arr.forEach(n=>{n.vel.addScaledVector(n.mesh.position,-CENTER_PULL*dt*60);n.vel.multiplyScalar(DAMPING);n.mesh.position.addScaledVector(n.vel,dt*60)})}
 
-    // Replay winner button
-    let lastWinner = null;
-    document.getElementById('btn-replay').addEventListener('click', () => {
-      if (!wsConnected || !lastWinner) return;
-      running = true;
-      btnStart.disabled = true;
-      setStatus('Replaying winner…');
-      ws.send(JSON.stringify({
-        type: 'replay',
-        agent: lastWinner,
-        symbol: document.getElementById('sel-symbol').value,
-        interval: parseInt(document.getElementById('sel-interval').value),
-        date_from: document.getElementById('date-from').value || null,
-        date_to: document.getElementById('date-to').value || null,
-      }));
-    });
+function animateNodes(dt){nodes.forEach((n,id)=>{if(n.growing){n.growT=Math.min(1,n.growT+dt*2.2);n.mesh.scale.setScalar(easeOutBack(n.growT));if(n.growT>=1)n.growing=false}if(n.dying){n.dyingT=Math.min(1,(n.dyingT||0)+dt*2.5);n.mesh.scale.setScalar(Math.max(0.001,1-n.dyingT));n.mesh.material.opacity=1-n.dyingT;if(n.dyingT>=1){scene.remove(n.mesh);n.mesh.geometry.dispose();n.mesh.material.dispose();nodes.delete(id)}}})}
 
-    btnCloseBanner.addEventListener('click', () => {
-      completeBanner.classList.remove('visible');
-    });
+// ═══ LEADERBOARD ═══
+function updateLB(agents){const a=[...agents].filter(x=>x.alive!==false).sort((a,b)=>(b.fitness??-Infinity)-(a.fitness??-Infinity)).slice(0,5);leaderboardEl.innerHTML=a.map((x,i)=>`<div class="lb-row"><span class="lb-rank">${i+1}</span><span class="lb-name">${x.id}</span><span class="lb-pnl ${pnlClass(x.fitness)}">${formatPnl(x.fitness)}</span></div>`).join('')}
 
-    // ─── RESIZE ───────────────────────────────────────────────────────────────────
+// ═══ SELECTED AGENT ═══
+function showDetail(a){agentDetail.classList.add('visible');selId.textContent=a.id;selPnl.textContent=formatPnl(a.fitness);selPnl.className=pnlClass(a.fitness);selGen.textContent=a.generation??'—';selParents.textContent=(a.parent_ids&&a.parent_ids.length)?a.parent_ids.join(', '):'None (seed)';selSkills.innerHTML=Object.entries(a.skills||{}).sort((a,b)=>b[1]-a[1]).map(([n,w])=>`<span class="skill-tag">${n}<b>${(w*100).toFixed(0)}</b></span>`).join('')}
+function hideDetail(){agentDetail.classList.remove('visible');selectedId=null}
 
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+// ═══ RAYCASTER ═══
+const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();
+renderer.domElement.addEventListener('click',ev=>{const r=renderer.domElement.getBoundingClientRect();mouse.x=((ev.clientX-r.left)/r.width)*2-1;mouse.y=-((ev.clientY-r.top)/r.height)*2+1;ray.setFromCamera(mouse,camera);const hits=ray.intersectObjects([...nodes.values()].map(n=>n.mesh));if(hits.length){const id=hits[0].object.userData.agentId;if(selectedId===id){hideDetail();desel(id)}else{if(selectedId)desel(selectedId);selectedId=id;sel(id);const n=nodes.get(id);if(n)showDetail(n.agent)}}else{if(selectedId)desel(selectedId);hideDetail()}});
+renderer.domElement.addEventListener('mousemove',ev=>{const r=renderer.domElement.getBoundingClientRect();mouse.x=((ev.clientX-r.left)/r.width)*2-1;mouse.y=-((ev.clientY-r.top)/r.height)*2+1;ray.setFromCamera(mouse,camera);const hits=ray.intersectObjects([...nodes.values()].map(n=>n.mesh));if(hits.length){const n=nodes.get(hits[0].object.userData.agentId);if(n){tooltip.textContent=`${n.agent.id}  ${formatPnl(n.agent.fitness)}`;tooltip.classList.add('visible');tooltip.style.left=(ev.clientX+14)+'px';tooltip.style.top=(ev.clientY-10)+'px';renderer.domElement.style.cursor='pointer'}}else{tooltip.classList.remove('visible');renderer.domElement.style.cursor='default'}});
 
-    // ─── RENDER LOOP ─────────────────────────────────────────────────────────────
+function sel(id){const n=nodes.get(id);if(!n)return;n.mesh.material.emissiveIntensity=0.8;const r=agentRadius(n.agent.fitness??0)*1.35;const ring=new THREE.Mesh(new THREE.RingGeometry(r,r+0.08,40),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:0.7}));ring.userData.isRing=true;ring.lookAt(camera.position);n.mesh.add(ring)}
+function desel(id){const n=nodes.get(id);if(!n)return;n.mesh.material.emissiveIntensity=0.25;n.mesh.children.filter(c=>c.userData.isRing).forEach(c=>{n.mesh.remove(c);c.geometry.dispose();c.material.dispose()})}
 
-    let lastTime = performance.now();
+// ═══ WEBSOCKET ═══
+let ws=null;
+function wsConnect(){if(ws&&ws.readyState<2)ws.close();ws=new WebSocket('ws://localhost:8765');ws.onopen=()=>{wsConnected=true;wsDot.classList.add('ok');wsLabel.textContent='online';setStatus('Connected — ready');btnStart.disabled=false};ws.onclose=()=>{wsConnected=false;wsDot.classList.remove('ok');wsLabel.textContent='offline';setStatus('Disconnected');if(running){running=false;btnStart.disabled=false}setTimeout(wsConnect,3000)};ws.onerror=()=>{wsLabel.textContent='error';setStatus('Cannot reach server')};ws.onmessage=ev=>{try{handleMsg(JSON.parse(ev.data))}catch(e){}}}
 
-    function animate() {
-      requestAnimationFrame(animate);
+function handleMsg(m){switch(m.type){
+  case'init':onInit(m);break;case'generation':onGen(m);break;case'deaths':onDeaths(m);break;case'births':onBirths(m);break;
+  case'complete':onComplete(m);break;case'quarter_result':onQR(m);break;case'robustness_report':onRobust(m);break;
+  case'replay_result':onReplay(m);break;case'status':setStatus(m.message||'');break;case'error':setStatus('ERROR: '+(m.message||''));break;
+}}
 
-      const now = performance.now();
-      const dt  = Math.min(0.05, (now - lastTime) / 1000);
-      lastTime  = now;
+function onInit(m){clearScene();currentGen=0;genDisplay.textContent='0';completeBanner.classList.remove('visible');replaySection.classList.remove('visible');const a=m.agents||[];a.forEach(x=>addAgent(x));buildEdges(a);updateLB(a);setStatus(`Init: ${a.length} agents, ${m.candle_count??'?'} candles`)}
+function onGen(m){currentGen=m.gen;genDisplay.textContent=m.gen;const a=m.agents||[];a.forEach(x=>{const n=nodes.get(x.id);if(n)updateMesh(n,x);else addAgent(x)});buildEdges(a.filter(x=>x.alive!==false));updateLB(a);setStatus(`Generation ${m.gen}`);if(selectedId){const n=nodes.get(selectedId);if(n)showDetail(n.agent)}}
+function onDeaths(m){(m.dead||[]).forEach(d=>{const id=typeof d==='string'?d:d.id;const n=nodes.get(id);if(n&&!n.dying){n.dying=true;n.dyingT=0}});setStatus(`Gen ${m.gen}: ${(m.dead||[]).length} died`)}
+function onBirths(m){(m.born||[]).forEach(a=>{if(!nodes.has(a.id))addAgent(a)});setStatus(`Gen ${m.gen}: ${(m.born||[]).length} born`)}
 
-      applyForces(dt);
-      animateNodes(dt);
-      updateEdgePositions();
+function onComplete(m){running=false;btnStart.disabled=false;setStatus('Evolution complete');const r=m.final_ranking||[];if(r.length){const s=[...r].sort((a,b)=>(b.fitness??-Infinity)-(a.fitness??-Infinity)).slice(0,5);leaderboardEl.innerHTML=s.map((a,i)=>`<div class="lb-row"><span class="lb-rank">${i+1}</span><span class="lb-name">${a.id}</span><span class="lb-pnl ${pnlClass(a.fitness)}">${formatPnl(a.fitness)}</span></div>`).join('')}const b=m.best;if(b){bestName.textContent=b.id;bestPnl.textContent=formatPnl(b.fitness);bestPnl.className='best-pnl '+pnlClass(b.fitness);showDetail(b);lastWinner=b;document.getElementById('btn-replay').style.display='block'}completeBanner.classList.add('visible')}
 
-      // keep selection ring facing camera
-      if (selectedId) {
-        const n = nodes.get(selectedId);
-        if (n) {
-          n.mesh.children.forEach(c => {
-            if (c.userData.isRing) c.lookAt(camera.position);
-          });
-        }
-      }
+function onQR(m){setStatus(`${m.label}: best = ${m.best?.id??'?'} (${formatPnl(m.best?.fitness)})`)}
 
-      controls.update();
-      renderer.render(scene, camera);
-    }
+function onRobust(m){const ov=document.getElementById('robustness-overlay'),tb=document.getElementById('robustness-table');const agents=m.agents||[],quarters=m.quarters||[];let h=`<table><thead><tr><th>#</th><th>Agent</th>`;quarters.forEach(q=>h+=`<th style="text-align:right">${q}</th>`);h+=`<th style="text-align:right">Total</th><th style="text-align:center">Win</th></tr></thead><tbody>`;agents.forEach((a,i)=>{h+=`<tr><td style="color:var(--text3)">${i+1}</td><td style="color:var(--accent);font-weight:600">${a.id}</td>`;quarters.forEach(q=>{const p=a.quarters[q]??0;h+=`<td style="text-align:right;color:${p>=0?'var(--green)':'var(--red)'}">${p>=0?'+':''}${p.toFixed(2)}%</td>`});h+=`<td style="text-align:right;font-weight:700;color:${a.total_pnl>=0?'var(--green)':'var(--red)'}">${a.total_pnl>=0?'+':''}${a.total_pnl.toFixed(2)}%</td>`;h+=`<td style="text-align:center;color:var(--accent)">${'★'.repeat(a.positive_quarters)}${'☆'.repeat(4-a.positive_quarters)}</td></tr>`;const sk=Object.entries(a.skills||{}).sort((x,y)=>y[1]-x[1]);h+=`<tr><td></td><td colspan="${quarters.length+2}" style="padding:2px 8px 10px">`;sk.forEach(([n,w])=>h+=`<span class="skill-tag">${n}<b>${(w*100).toFixed(0)}</b></span> `);h+=`</td></tr>`});h+='</tbody></table>';tb.innerHTML=h;ov.style.display='block'}
 
-    // ─── BOOT ─────────────────────────────────────────────────────────────────────
+function onReplay(m){running=false;btnStart.disabled=false;replaySection.classList.add('visible');const a=m.agent,trades=m.trades||[],eq=m.equity||[];
+  const rts=trades.filter(t=>t.action==='ROUND TRIP');const wins=rts.filter(t=>t.pnl>0).length;const wr=rts.length?((wins/rts.length)*100).toFixed(0):'0';
+  const maxEq=Math.max(...eq),minEq=Math.min(...eq),dd=maxEq>0?((maxEq-minEq)/maxEq*100).toFixed(1):'0';
+  document.getElementById('replay-stats').innerHTML=`
+    <div class="stat-card ${m.pnl>=0?'stat-green':'stat-red'}"><div class="stat-val">${m.pnl>=0?'+':''}${m.pnl.toFixed(2)}%</div><div class="stat-lbl">PnL</div></div>
+    <div class="stat-card stat-accent"><div class="stat-val">${rts.length}</div><div class="stat-lbl">Round Trips</div></div>
+    <div class="stat-card stat-cyan"><div class="stat-val">${wr}%</div><div class="stat-lbl">Win Rate</div></div>
+    <div class="stat-card stat-red"><div class="stat-val">${dd}%</div><div class="stat-lbl">Max DD</div></div>`;
+  // Equity chart
+  drawEquity(eq,trades);
+  // Trade log
+  let tl=`<div class="trade-row trade-header"><span>Time</span><span>Event</span><span>Price</span><span>PnL</span></div>`;
+  trades.forEach(t=>{const cls=t.action.replace(/ /g,'-').toLowerCase();const pc=t.pnl>0?'pnl-pos':t.pnl<0?'pnl-neg':'';tl+=`<div class="trade-row"><span style="color:var(--text3)">${t.ts||'#'+t.candle_idx}</span><span class="trade-${cls}">${t.action}</span><span>${t.price}</span><span class="${pc}">${t.pnl!=null?(t.pnl>=0?'+':'')+t.pnl:'—'}</span></div>`});
+  document.getElementById('trade-log').innerHTML=tl;
+}
 
-    btnStart.disabled = true;
-    wsConnect();
-    animate();
-  </script>
+function drawEquity(eq,trades){
+  const c=document.getElementById('equity-chart'),ctx=c.getContext('2d');
+  const dpr=window.devicePixelRatio||1;c.width=c.offsetWidth*dpr;c.height=120*dpr;ctx.scale(dpr,dpr);
+  const W=c.offsetWidth,H=120;
+  const max=Math.max(...eq)*1.01,min=Math.min(...eq)*0.99,rng=max-min||1;
+  const step=W/(eq.length-1);
+  // Grid
+  ctx.strokeStyle='rgba(139,124,247,0.08)';ctx.lineWidth=1;
+  for(let y=0;y<=3;y++){const yy=(y/3)*H;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(W,yy);ctx.stroke();ctx.fillStyle='rgba(221,214,254,0.2)';ctx.font='9px IBM Plex Mono';ctx.fillText('$'+(max-(y/3)*rng).toFixed(0),4,yy-3)}
+  // $100 line
+  const y100=H-((100-min)/rng)*H;ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(0,y100);ctx.lineTo(W,y100);ctx.stroke();ctx.setLineDash([]);
+  // RT markers
+  trades.forEach(t=>{if(t.action!=='ROUND TRIP'||!t.candle_idx)return;const x=(t.candle_idx/(eq.length-1))*W;const idx=Math.min(t.candle_idx,eq.length-1);const y=H-((eq[idx]-min)/rng)*H;ctx.fillStyle=t.pnl>0?'rgba(52,211,153,0.5)':'rgba(248,113,113,0.5)';ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill()});
+  // Curve
+  ctx.beginPath();eq.forEach((v,i)=>{const x=i*step,y=H-((v-min)/rng)*H;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
+  const last=eq[eq.length-1];ctx.strokeStyle=last>=100?'#34d399':'#f87171';ctx.lineWidth=1.5;ctx.stroke();
+  // Fill
+  const grad=ctx.createLinearGradient(0,0,0,H);grad.addColorStop(0,last>=100?'rgba(52,211,153,0.12)':'rgba(248,113,113,0.12)');grad.addColorStop(1,'transparent');ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+}
+
+function setStatus(t){statusText.textContent=t}
+
+// ═══ START ═══
+btnStart.addEventListener('click',()=>{if(!wsConnected||running)return;running=true;btnStart.disabled=true;completeBanner.classList.remove('visible');replaySection.classList.remove('visible');setStatus('Starting...');
+  const mode=document.querySelector('.mode-card.active')?.dataset.mode||'grid';
+  const config={population:parseInt(document.getElementById('sl-pop').value),generations:parseInt(document.getElementById('sl-gen').value),mutation_rate:parseFloat(document.getElementById('sl-mut').value),symbol:document.getElementById('sel-symbol').value,interval:parseInt(document.getElementById('sel-interval').value),date_from:document.getElementById('date-from').value||null,date_to:document.getElementById('date-to').value||null,mode,grid_spacing:parseFloat(document.getElementById('sl-spacing').value)/100,grid_levels:parseInt(document.getElementById('sl-levels').value),max_loss:parseInt(document.getElementById('sl-maxloss').value)/100,leverage:parseInt(document.getElementById('sl-leverage').value),fee_pct:parseFloat(document.getElementById('sl-fee').value),trail_pct:parseFloat(document.getElementById('sl-trail').value)/100,tp_pct:parseFloat(document.getElementById('sl-tp').value)/100,sl_pct:parseFloat(document.getElementById('sl-sl').value)/100,min_hold:parseInt(document.getElementById('sl-minhold').value),dca_levels:parseInt(document.getElementById('sl-dca-levels').value),dca_spacing:parseFloat(document.getElementById('sl-dca-spacing').value)/100,dca_mult:parseFloat(document.getElementById('sl-dca-mult').value),dca_trail:parseFloat(document.getElementById('sl-dca-trail').value)/100,enabled_skills:Object.entries(skillStates).filter(([k,v])=>v.enabled).map(([k])=>k)};
+  ws.send(JSON.stringify({type:'start',config}))});
+
+document.getElementById('btn-replay').addEventListener('click',()=>{if(!wsConnected||!lastWinner)return;running=true;btnStart.disabled=true;setStatus('Replaying...');ws.send(JSON.stringify({type:'replay',agent:lastWinner,symbol:document.getElementById('sel-symbol').value,interval:parseInt(document.getElementById('sel-interval').value),date_from:document.getElementById('date-from').value||null,date_to:document.getElementById('date-to').value||null}))});
+
+btnCloseBanner.addEventListener('click',()=>completeBanner.classList.remove('visible'));
+
+// ═══ RESIZE ═══
+window.addEventListener('resize',()=>{camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight)});
+
+// ═══ RENDER ═══
+let lt=performance.now();
+function animate(){requestAnimationFrame(animate);const now=performance.now(),dt=Math.min(0.05,(now-lt)/1000);lt=now;applyForces(dt);animateNodes(dt);updateEdgePos();if(selectedId){const n=nodes.get(selectedId);if(n)n.mesh.children.forEach(c=>{if(c.userData.isRing)c.lookAt(camera.position)})}controls.update();renderer.render(scene,camera)}
+
+btnStart.disabled=true;wsConnect();animate();
+</script>
 </body>
 </html>
