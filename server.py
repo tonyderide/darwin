@@ -92,15 +92,21 @@ async def run_evolution(config: dict):
         all_candles[i * q_size : (i + 1) * q_size]
         for i in range(4)
     ]
-    quarter_labels = ["Q1 (oldest)", "Q2", "Q3", "Q4 (recent)"]
+    # Label each quarter with actual date range
+    def _date_label(candles_slice):
+        d0 = datetime.fromtimestamp(candles_slice[0]["timestamp"] / 1000).strftime("%m/%d")
+        d1 = datetime.fromtimestamp(candles_slice[-1]["timestamp"] / 1000).strftime("%m/%d")
+        return f"{d0}-{d1}"
 
-    # Train on Q1 (oldest 3 months)
+    quarter_labels = [f"Q{i+1} ({_date_label(quarters[i])})" for i in range(4)]
+
+    # Train on Q1 (oldest period)
     train_candles = quarters[0]
 
-    await broadcast({"type": "status", "message": f"Got {len(all_candles)} candles. 4 quarters of ~{q_size} candles. Training on {quarter_labels[0]}..."})
+    await broadcast({"type": "status", "message": f"Source: {source}. {len(all_candles)} candles, 4 periods of ~{q_size}. Training on {quarter_labels[0]}..."})
 
     agents = [create_random_agent(num_skills=4, generation=0) for _ in range(pop_size)]
-    arena = Arena(candles=train_candles)
+    arena = Arena(candles=train_candles, config=config)
 
     await broadcast({
         "type": "init",
@@ -172,7 +178,7 @@ async def run_evolution(config: dict):
         await broadcast({"type": "status", "message": f"Testing on {quarter_labels[qi]} ({len(quarters[qi])} candles)..."})
         await asyncio.sleep(0.5)
 
-        test_arena = Arena(candles=quarters[qi])
+        test_arena = Arena(candles=quarters[qi], config=config)
         test_arena.evaluate(agents)
         test_ranked = sorted(agents, key=lambda a: a.fitness, reverse=True)
 
@@ -216,82 +222,114 @@ async def run_evolution(config: dict):
     })
 
 async def replay_agent(config: dict):
-    """Replay a single agent on specified data, return detailed trades."""
+    """Replay a single agent as a GRID bot, return equity + trade log."""
     agent_data = config.get("agent", {})
     symbol = config.get("symbol", "PF_SOLUSD")
     date_from = config.get("date_from")
     date_to = config.get("date_to")
-
     interval = config.get("interval", 240)
 
-    await broadcast({"type": "status", "message": f"Replaying {agent_data.get('id', '?')} on {symbol}..."})
+    await broadcast({"type": "status", "message": f"Grid replay {agent_data.get('id', '?')} on {symbol}..."})
 
     candles, source = get_candles(symbol, interval, date_from, date_to)
-
     if not candles or len(candles) < 10:
         await broadcast({"type": "error", "message": "Not enough candle data for replay"})
         return
 
-    # Rebuild agent from skills
+    from indicators import enrich_candles
+    enrich_candles(candles)
+
     agent = Agent(
         agent_id=agent_data.get("id", "replay"),
         skills=agent_data.get("skills", {}),
         generation=agent_data.get("generation", 0),
     )
 
-    # Detailed replay with trade logging (0.05% fee per trade)
     capital = 100.0
     fee_rate = 0.0005
-    position = None
+    spacing = agent.get_grid_spacing()
+    levels = agent.get_grid_levels()
+    stop_loss = agent.get_stop_loss()
+    min_hold = agent.get_min_hold()
+
+    grid = None
+    equity = [100.0]
     trades = []
-    equity = [capital]
     total_fees = 0.0
 
     for i in range(1, len(candles)):
-        candle = candles[i]
+        c = candles[i]
         prev = candles[i - 1]
-        action = agent.decide(candle, prev, position)
+        price = c["close"]
 
-        if action == "buy" and position is None:
-            fee = capital * fee_rate
-            total_fees += fee
-            capital_after_fee = capital - fee
-            size = capital_after_fee / candle["close"]
-            position = {"entry": candle["close"], "size": size, "peak": candle["close"]}
-            trades.append({"action": "buy", "price": candle["close"], "pnl": None, "fee": round(fee, 4), "candle_idx": i})
-            capital = 0
+        if grid is None:
+            action = agent.decide(c, prev, None)
+            if action == "buy" and capital > 1:
+                size_per = capital / (levels * price)
+                grid = {
+                    "center": price, "capital": capital, "profit": 0.0, "rt": 0, "active": 0,
+                    "buys": [{"price": price * (1 - spacing * n), "filled": False, "size": size_per} for n in range(1, levels + 1)],
+                    "sells": [{"price": price * (1 + spacing * n), "filled": False, "size": size_per} for n in range(1, levels + 1)],
+                }
+                capital = 0
+                trades.append({"action": "GRID START", "price": round(price, 2), "pnl": None, "candle_idx": i})
+        else:
+            grid["active"] += 1
 
-        elif action == "sell" and position is not None:
-            gross = position["size"] * candle["close"]
-            fee = gross * fee_rate
-            total_fees += fee
-            capital = gross - fee
-            pnl_pct = ((capital - 100.0) / 100.0) * 100 if len(trades) == 1 else ((candle["close"] - position["entry"]) / position["entry"] - 2 * fee_rate) * 100
-            trades.append({"action": "sell", "price": candle["close"], "pnl": round(pnl_pct, 2), "fee": round(fee, 4), "candle_idx": i})
-            position = None
+            for buy in grid["buys"]:
+                if not buy["filled"] and c["low"] <= buy["price"]:
+                    buy["filled"] = True
+                    fee = buy["size"] * buy["price"] * fee_rate
+                    total_fees += fee
+                    grid["profit"] -= fee
+                    trades.append({"action": "BUY FILL", "price": round(buy["price"], 2), "pnl": None, "candle_idx": i})
 
-        elif position is not None:
-            if candle["close"] > position["peak"]:
-                position["peak"] = candle["close"]
+            for j, sell in enumerate(grid["sells"]):
+                if not sell["filled"] and c["high"] >= sell["price"]:
+                    if j < len(grid["buys"]) and grid["buys"][j]["filled"]:
+                        sell["filled"] = True
+                        rt_profit = (sell["price"] - grid["buys"][j]["price"]) * sell["size"]
+                        fee = sell["size"] * sell["price"] * fee_rate
+                        total_fees += fee
+                        grid["profit"] += rt_profit - fee
+                        grid["rt"] += 1
+                        grid["buys"][j]["filled"] = False
+                        sell["filled"] = False
+                        trades.append({"action": "ROUND TRIP", "price": round(sell["price"], 2), "pnl": round(rt_profit - fee, 3), "candle_idx": i})
 
-        # Track equity
-        if position:
-            eq = position["size"] * candle["close"]
+            unrealized = sum((price - b["price"]) * b["size"] for b in grid["buys"] if b["filled"])
+            total_pnl = grid["profit"] + unrealized
+            total_pnl_pct = total_pnl / grid["capital"]
+
+            if total_pnl_pct < -stop_loss:
+                close_val = grid["capital"] + total_pnl
+                capital = max(0, close_val)
+                trades.append({"action": "GRID STOP", "price": round(price, 2), "pnl": round(total_pnl, 2), "candle_idx": i})
+                grid = None
+            elif grid["active"] >= min_hold:
+                action = agent.decide(c, prev, {"entry": grid["center"], "peak": grid["center"]})
+                if action == "sell":
+                    close_val = grid["capital"] + total_pnl
+                    capital = max(0, close_val)
+                    trades.append({"action": "GRID CLOSE", "price": round(price, 2), "pnl": round(grid["profit"], 2), "candle_idx": i})
+                    grid = None
+
+        if grid:
+            unrealized = sum((price - b["price"]) * b["size"] for b in grid["buys"] if b["filled"])
+            eq = grid["capital"] + grid["profit"] + unrealized
         else:
             eq = capital
         equity.append(round(eq, 2))
 
-    # Close open position
-    if position is not None:
-        capital = position["size"] * candles[-1]["close"]
-        pnl_pct = ((candles[-1]["close"] - position["entry"]) / position["entry"]) * 100
-        trades.append({"action": "sell (close)", "price": candles[-1]["close"], "pnl": round(pnl_pct, 2), "candle_idx": len(candles) - 1})
+    if grid:
+        last_p = candles[-1]["close"]
+        unrealized = sum((last_p - b["price"]) * b["size"] for b in grid["buys"] if b["filled"])
+        capital = grid["capital"] + grid["profit"] + unrealized
 
     final_pnl = round(capital - 100.0, 4) if capital > 0 else round(equity[-1] - 100.0, 4)
 
-    # Downsample equity to ~200 points for the chart
-    if len(equity) > 200:
-        step = len(equity) // 200
+    if len(equity) > 300:
+        step = len(equity) // 300
         equity = equity[::step]
 
     await broadcast({
