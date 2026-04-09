@@ -67,7 +67,7 @@ select:focus,.input-field:focus{border-color:var(--accent)}
 .date-row input{flex:1}
 
 /* Mode selector */
-.mode-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px}
+.mode-cards{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:14px}
 .mode-card{padding:10px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;transition:all .2s}
 .mode-card:hover{border-color:rgba(139,124,247,0.3)}
 .mode-card.active{border-color:var(--accent);background:var(--accent-dim)}
@@ -237,6 +237,7 @@ select:focus,.input-field:focus{border-color:var(--accent)}
     <div class="mode-cards">
       <div class="mode-card active" data-mode="grid"><div class="mode-icon">⊞</div><div class="mode-name">Grid</div></div>
       <div class="mode-card" data-mode="scalp"><div class="mode-icon">⚡</div><div class="mode-name">Scalp</div></div>
+      <div class="mode-card" data-mode="martingale"><div class="mode-icon">×2</div><div class="mode-name">Marting.</div></div>
       <div class="mode-card" data-mode="dca"><div class="mode-icon">▼</div><div class="mode-name">DCA</div></div>
     </div>
 
@@ -281,6 +282,37 @@ select:focus,.input-field:focus{border-color:var(--accent)}
       <div class="form-group">
         <div class="form-label">Min Hold (candles) <span class="form-value" id="val-minhold">3</span></div>
         <input type="range" id="sl-minhold" min="1" max="20" value="3" step="1">
+      </div>
+    </div>
+
+    <!-- Martingale config -->
+    <div id="config-martingale" style="display:none">
+      <div class="form-group">
+        <div class="form-label">Levels (doublings) <span class="form-value" id="val-mart-levels">3</span></div>
+        <input type="range" id="sl-mart-levels" min="2" max="5" value="3" step="1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Level Spacing <span class="form-value" id="val-mart-spacing">1.0%</span></div>
+        <input type="range" id="sl-mart-spacing" min="0.5" max="5.0" value="1.0" step="0.5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Trailing Stop <span class="form-value" id="val-mart-trail">3.0%</span></div>
+        <input type="range" id="sl-mart-trail" min="0.5" max="5.0" value="3.0" step="0.5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Min Profit to Trail <span class="form-value" id="val-mart-minprof">0.5%</span></div>
+        <input type="range" id="sl-mart-minprof" min="0.1" max="3.0" value="0.5" step="0.1">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Hard Stop Loss <span class="form-value" id="val-mart-sl">5.0%</span></div>
+        <input type="range" id="sl-mart-sl" min="1.0" max="10.0" value="5.0" step="0.5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Flip Direction</div>
+        <div style="display:flex;gap:6px">
+          <div class="mode-card active" data-flip="long-short" style="padding:6px 4px"><div class="mode-name">Long → Short</div></div>
+          <div class="mode-card" data-flip="long-only" style="padding:6px 4px"><div class="mode-name">Long Only</div></div>
+        </div>
       </div>
     </div>
 
@@ -446,9 +478,15 @@ document.querySelectorAll('.mode-card').forEach(card=>{
   card.addEventListener('click',()=>{
     document.querySelectorAll('.mode-card').forEach(c=>c.classList.remove('active'));
     card.classList.add('active');
-    document.getElementById('config-grid').style.display=card.dataset.mode==='grid'?'block':'none';
-    document.getElementById('config-scalp').style.display=card.dataset.mode==='scalp'?'block':'none';
-    document.getElementById('config-dca').style.display=card.dataset.mode==='dca'?'block':'none';
+    ['grid','scalp','martingale','dca'].forEach(m=>document.getElementById('config-'+m).style.display=card.dataset.mode===m?'block':'none');
+  });
+});
+
+// ═══ FLIP DIRECTION TOGGLE ═══
+document.querySelectorAll('[data-flip]').forEach(card=>{
+  card.addEventListener('click',()=>{
+    document.querySelectorAll('[data-flip]').forEach(c=>c.classList.remove('active'));
+    card.classList.add('active');
   });
 });
 
@@ -457,6 +495,7 @@ function bind(sid,vid,fmt){const s=document.getElementById(sid),v=document.getEl
 bind('sl-pop','val-pop',v=>v);bind('sl-gen','val-gen',v=>v);bind('sl-mut','val-mut',v=>parseFloat(v).toFixed(2));
 bind('sl-spacing','val-spacing',v=>v+'%');bind('sl-levels','val-levels',v=>v);bind('sl-maxloss','val-maxloss',v=>v+'%');bind('sl-leverage','val-leverage',v=>v+'x');bind('sl-fee','val-fee',v=>v+'%');
 bind('sl-trail','val-trail',v=>v+'%');bind('sl-tp','val-tp',v=>v+'%');bind('sl-sl','val-sl',v=>v+'%');bind('sl-minhold','val-minhold',v=>v);
+bind('sl-mart-levels','val-mart-levels',v=>v);bind('sl-mart-spacing','val-mart-spacing',v=>v+'%');bind('sl-mart-trail','val-mart-trail',v=>v+'%');bind('sl-mart-minprof','val-mart-minprof',v=>v+'%');bind('sl-mart-sl','val-mart-sl',v=>v+'%');
 bind('sl-dca-levels','val-dca-levels',v=>v);bind('sl-dca-spacing','val-dca-spacing',v=>v+'%');bind('sl-dca-mult','val-dca-mult',v=>v+'x');bind('sl-dca-trail','val-dca-trail',v=>v+'%');
 
 // ═══ SKILLS BROWSER ═══
@@ -602,7 +641,8 @@ function setStatus(t){statusText.textContent=t}
 // ═══ START ═══
 btnStart.addEventListener('click',()=>{if(!wsConnected||running)return;running=true;btnStart.disabled=true;completeBanner.classList.remove('visible');replaySection.classList.remove('visible');setStatus('Starting...');
   const mode=document.querySelector('.mode-card.active')?.dataset.mode||'grid';
-  const config={population:parseInt(document.getElementById('sl-pop').value),generations:parseInt(document.getElementById('sl-gen').value),mutation_rate:parseFloat(document.getElementById('sl-mut').value),symbol:document.getElementById('sel-symbol').value,interval:parseInt(document.getElementById('sel-interval').value),date_from:document.getElementById('date-from').value||null,date_to:document.getElementById('date-to').value||null,mode,grid_spacing:parseFloat(document.getElementById('sl-spacing').value)/100,grid_levels:parseInt(document.getElementById('sl-levels').value),max_loss:parseInt(document.getElementById('sl-maxloss').value)/100,leverage:parseInt(document.getElementById('sl-leverage').value),fee_pct:parseFloat(document.getElementById('sl-fee').value),trail_pct:parseFloat(document.getElementById('sl-trail').value)/100,tp_pct:parseFloat(document.getElementById('sl-tp').value)/100,sl_pct:parseFloat(document.getElementById('sl-sl').value)/100,min_hold:parseInt(document.getElementById('sl-minhold').value),dca_levels:parseInt(document.getElementById('sl-dca-levels').value),dca_spacing:parseFloat(document.getElementById('sl-dca-spacing').value)/100,dca_mult:parseFloat(document.getElementById('sl-dca-mult').value),dca_trail:parseFloat(document.getElementById('sl-dca-trail').value)/100,enabled_skills:Object.entries(skillStates).filter(([k,v])=>v.enabled).map(([k])=>k)};
+  const flipEl=document.querySelector('[data-flip].active');const flip=flipEl?flipEl.dataset.flip:'long-short';
+  const config={population:parseInt(document.getElementById('sl-pop').value),generations:parseInt(document.getElementById('sl-gen').value),mutation_rate:parseFloat(document.getElementById('sl-mut').value),symbol:document.getElementById('sel-symbol').value,interval:parseInt(document.getElementById('sel-interval').value),date_from:document.getElementById('date-from').value||null,date_to:document.getElementById('date-to').value||null,mode,grid_spacing:parseFloat(document.getElementById('sl-spacing').value)/100,grid_levels:parseInt(document.getElementById('sl-levels').value),max_loss:parseInt(document.getElementById('sl-maxloss').value)/100,leverage:parseInt(document.getElementById('sl-leverage').value),fee_pct:parseFloat(document.getElementById('sl-fee').value),trail_pct:parseFloat(document.getElementById('sl-trail').value)/100,tp_pct:parseFloat(document.getElementById('sl-tp').value)/100,sl_pct:parseFloat(document.getElementById('sl-sl').value)/100,min_hold:parseInt(document.getElementById('sl-minhold').value),mart_levels:parseInt(document.getElementById('sl-mart-levels').value),mart_spacing:parseFloat(document.getElementById('sl-mart-spacing').value)/100,mart_trail:parseFloat(document.getElementById('sl-mart-trail').value)/100,mart_min_profit:parseFloat(document.getElementById('sl-mart-minprof').value)/100,mart_sl:parseFloat(document.getElementById('sl-mart-sl').value)/100,mart_flip:flip,dca_levels:parseInt(document.getElementById('sl-dca-levels').value),dca_spacing:parseFloat(document.getElementById('sl-dca-spacing').value)/100,dca_mult:parseFloat(document.getElementById('sl-dca-mult').value),dca_trail:parseFloat(document.getElementById('sl-dca-trail').value)/100,enabled_skills:Object.entries(skillStates).filter(([k,v])=>v.enabled).map(([k])=>k)};
   ws.send(JSON.stringify({type:'start',config}))});
 
 document.getElementById('btn-replay').addEventListener('click',()=>{if(!wsConnected||!lastWinner)return;running=true;btnStart.disabled=true;setStatus('Replaying...');ws.send(JSON.stringify({type:'replay',agent:lastWinner,symbol:document.getElementById('sel-symbol').value,interval:parseInt(document.getElementById('sel-interval').value),date_from:document.getElementById('date-from').value||null,date_to:document.getElementById('date-to').value||null}))});
